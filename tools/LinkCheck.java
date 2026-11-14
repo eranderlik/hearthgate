@@ -1,9 +1,12 @@
 import java.io.*; import java.lang.classfile.*; import java.lang.classfile.constantpool.*; import java.nio.file.*; import java.util.*; import java.util.zip.*;
-/** Checks every net.minecraft member referenced by our classes resolves in a target jar (walking superclasses/interfaces). */
+/** Checks every net.minecraft member referenced by our classes resolves in the target jars (walking superclasses/interfaces). Usage: LinkCheck LABEL JAR... */
 public class LinkCheck {
   static Map<String, ClassModel> target = new HashMap<>();
   public static void main(String[] a) throws Exception {
-    try (ZipFile z = new ZipFile(a[0])) { for (var e : Collections.list(z.entries())) if (e.getName().endsWith(".class")) { var cm = ClassFile.of().parse(z.getInputStream(e).readAllBytes()); target.put(cm.thisClass().asInternalName(), cm); } }
+    if (a.length < 2) throw new IllegalArgumentException("usage: LinkCheck LABEL JAR...");
+    for (int i = 1; i < a.length; i++) try (ZipFile z = new ZipFile(a[i])) { for (var e : Collections.list(z.entries())) if (e.getName().endsWith(".class")) { var cm = ClassFile.of().parse(z.getInputStream(e).readAllBytes()); target.put(cm.thisClass().asInternalName(), cm); } }
+    // Guard against checking the wrong jars (e.g. a library) and passing vacuously.
+    if (!target.containsKey("net/minecraft/client/Minecraft") || !target.containsKey("net/minecraft/server/MinecraftServer")) throw new IllegalStateException("the jars given lack Minecraft's client or server classes: " + Arrays.toString(Arrays.copyOfRange(a, 1, a.length)));
     int refs = 0, bad = 0; Set<String> seen = new TreeSet<>();
     try (var walk = Files.walk(Path.of("dev"))) { for (Path p : walk.filter(f -> f.toString().endsWith(".class")).toList()) {
       var cm = ClassFile.of().parse(Files.readAllBytes(p));
@@ -14,7 +17,8 @@ public class LinkCheck {
           if (!resolve(m.owner().asInternalName(), m.name().stringValue(), m.type().stringValue(), m instanceof FieldRefEntry)) { bad++; System.out.println("MISSING " + key); }
         } else if (pe instanceof ClassEntry c && c.asInternalName().startsWith("net/minecraft/") && seen.add(c.asInternalName()) && !target.containsKey(c.asInternalName())) { bad++; System.out.println("MISSING class " + c.asInternalName()); }
       } } }
-    System.out.println(a[0].replaceAll(".*/", "") + ": " + refs + " member refs, " + bad + " missing");
+    if (refs == 0) throw new IllegalStateException("no Minecraft references found under dev/; is the mod jar unpacked?");
+    System.out.println("Minecraft " + a[0] + ": " + refs + " member refs, " + bad + " missing");
   }
   static boolean resolve(String owner, String name, String desc, boolean field) {
     ClassModel c = target.get(owner); if (c == null) return false;
