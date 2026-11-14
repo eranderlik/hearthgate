@@ -1,4 +1,4 @@
-package dev.tailcatmc.core.host;
+package dev.hearthgate.core.host;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;

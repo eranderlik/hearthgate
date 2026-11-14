@@ -1,4 +1,4 @@
-package dev.tailcatmc.core.host;
+package dev.hearthgate.core.host;
 
 import com.dylibso.chicory.runtime.HostFunction;
 import com.dylibso.chicory.runtime.ImportValues;
@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * Host environment for one helper instance: WASI preview 1 plus the "tcmc"
+ * Host environment for one helper instance: WASI preview 1 plus the "hearthgate"
  * socket and crypto module.
  *
  * <p>All imports run on the single guest thread. The only cross-thread entry
@@ -59,14 +59,14 @@ import java.util.function.Consumer;
  */
 public final class HelperHost implements AutoCloseable {
 	private static final String WASI = "wasi_snapshot_preview1";
-	private static final String TCMC = "tcmc";
+	private static final String TCMC = "hearthgate";
 	private static final int IO_CHUNK = 256 * 1024;
 	private static final int CONNECT_TIMEOUT_MS = 10_000;
 	private static final int UDP_BUFFER = 4 << 20;
 
 	private static final AtomicInteger WORKER_IDS = new AtomicInteger();
 	private static final ExecutorService CONNECT_WORKERS = Executors.newCachedThreadPool(r -> {
-		Thread t = new Thread(r, "tcmc-connect-" + WORKER_IDS.incrementAndGet());
+		Thread t = new Thread(r, "hearthgate-connect-" + WORKER_IDS.incrementAndGet());
 		t.setDaemon(true);
 		return t;
 	});
@@ -243,7 +243,7 @@ public final class HelperHost implements AutoCloseable {
 		f.add(errnoFn(WASI, "path_remove_directory", "iii", (m, a) -> Errno.ENOTCAPABLE));
 		f.add(errnoFn(WASI, "path_rename", "iiiiii", (m, a) -> Errno.ENOTCAPABLE));
 		f.add(errnoFn(WASI, "path_unlink_file", "iii", (m, a) -> Errno.ENOTCAPABLE));
-		// tcmc: sockets
+		// hearthgate: sockets
 		f.add(errnoFn(TCMC, "tcp_connect", "iiiii", this::tcpConnect));
 		f.add(errnoFn(TCMC, "tcp_connect_status", "i", this::tcpConnectStatus));
 		f.add(errnoFn(TCMC, "tcp_listen", "iii", this::tcpListen));
@@ -256,7 +256,7 @@ public final class HelperHost implements AutoCloseable {
 		f.add(errnoFn(TCMC, "udp_sendto", "iiii", this::udpSendTo));
 		f.add(errnoFn(TCMC, "sock_addr", "iii", this::sockAddr));
 		f.add(errnoFn(TCMC, "interfaces", "iii", this::interfaces));
-		// tcmc: crypto
+		// hearthgate: crypto
 		f.add(errnoFn(TCMC, "aead_seal", "iiiiiii", (m, a) -> aead(m, a, true)));
 		f.add(errnoFn(TCMC, "aead_open", "iiiiiii", (m, a) -> aead(m, a, false)));
 		return ImportValues.builder().withFunctions(Collections.unmodifiableList(f)).build();
@@ -535,7 +535,7 @@ public final class HelperHost implements AutoCloseable {
 	}
 
 	// ---------------------------------------------------------------------
-	// tcmc: sockets
+	// hearthgate: sockets
 
 	private static String str(Memory m, long ptr, long len) {
 		return len == 0 ? "" : m.readString(u32(ptr), u32(len));
@@ -902,7 +902,7 @@ public final class HelperHost implements AutoCloseable {
 	}
 
 	// ---------------------------------------------------------------------
-	// tcmc: crypto
+	// hearthgate: crypto
 
 	private int aead(Memory m, long[] a, boolean seal) throws GeneralSecurityException {
 		byte[] key = m.readBytes(u32(a[0]), 32);

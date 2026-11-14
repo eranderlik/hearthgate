@@ -1,6 +1,6 @@
-package dev.tailcatmc.fabric;
+package dev.hearthgate.fabric;
 
-import dev.tailcatmc.core.HelperSession;
+import dev.hearthgate.core.HelperSession;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -19,7 +19,7 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 
 import java.util.List;
 
-public final class TailcatClient implements ClientModInitializer {
+public final class HearthgateClient implements ClientModInitializer {
 	private static Sessions sessions;
 
 	public static Sessions sessions() {
@@ -27,7 +27,7 @@ public final class TailcatClient implements ClientModInitializer {
 	}
 
 	static boolean verbose() {
-		return Boolean.getBoolean("tailcatmc.verbose") || "1".equals(System.getenv("TCMC_VERBOSE"));
+		return Boolean.getBoolean("hearthgate.verbose") || "1".equals(System.getenv("HEARTHGATE_VERBOSE"));
 	}
 
 	@Override
@@ -40,8 +40,8 @@ public final class TailcatClient implements ClientModInitializer {
 			Thread t = new Thread(() -> {
 				long t0 = System.nanoTime();
 				HelperSession.preload();
-				Sessions.LOG.info("Tailcat helper loaded in {} ms", (System.nanoTime() - t0) / 1_000_000);
-			}, "tcmc-preload");
+				Sessions.LOG.info("Hearthgate helper loaded in {} ms", (System.nanoTime() - t0) / 1_000_000);
+			}, "hearthgate-preload");
 			t.setDaemon(true);
 			t.setPriority(Thread.MIN_PRIORITY);
 			t.start();
@@ -75,13 +75,13 @@ public final class TailcatClient implements ClientModInitializer {
 		});
 	}
 
-	/** Adds "Share with Tailcat" in a row beneath "Open to LAN", moving later rows down. */
+	/** Adds "Share with Hearthgate" in a row beneath "Open to LAN", moving later rows down. */
 	private static void addShareButton(Minecraft client, Screen screen) {
 		List<AbstractWidget> widgets = Screens.getWidgets(screen);
 		Component label = Component.translatable(sessions != null && sessions.isSharing()
-				? "tailcatmc.button.sharing" : "tailcatmc.button.share");
+				? "hearthgate.button.sharing" : "hearthgate.button.share");
 		Button.Builder b = Button.builder(label, btn -> Compat.setScreen(client, new ShareScreen(screen)))
-				.tooltip(Tooltip.create(Component.translatable("tailcatmc.button.share_tooltip")));
+				.tooltip(Tooltip.create(Component.translatable("hearthgate.button.share_tooltip")));
 		// The button that opens the world to others: "Open to LAN" in 26.1.x,
 		// "Open to LAN" under a new key in 26.2, "World Options..." in 26.3.
 		// Fall back to the Options row, then to a corner.
@@ -108,11 +108,11 @@ public final class TailcatClient implements ClientModInitializer {
 		widgets.add(b.bounds(left, below + 4, right - left, lan.getHeight()).build());
 	}
 
-	/** Adds "Join with Tailcat" to the multiplayer screen's header. */
+	/** Adds "Join with Hearthgate" to the multiplayer screen's header. */
 	private static void addJoinButton(Minecraft client, Screen screen, int width) {
-		Screens.getWidgets(screen).add(Button.builder(Component.translatable("tailcatmc.button.join"),
+		Screens.getWidgets(screen).add(Button.builder(Component.translatable("hearthgate.button.join"),
 						btn -> Compat.setScreen(client, new JoinScreen(screen)))
-				.tooltip(Tooltip.create(Component.translatable("tailcatmc.button.join_tooltip")))
+				.tooltip(Tooltip.create(Component.translatable("hearthgate.button.join_tooltip")))
 				.bounds(width - 134, 6, 128, 20).build());
 	}
 

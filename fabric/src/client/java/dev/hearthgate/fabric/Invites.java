@@ -1,4 +1,4 @@
-package dev.tailcatmc.fabric;
+package dev.hearthgate.fabric;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -13,7 +13,7 @@ import java.util.Optional;
  * starting a tunnel. The helper performs the authoritative parse.
  */
 final class Invites {
-	static final String PREFIX = "tcmc1_";
+	static final String PREFIX = "hg1_";
 
 	record Info(String minecraftVersion) {}
 

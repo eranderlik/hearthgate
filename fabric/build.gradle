@@ -16,7 +16,7 @@ if (fabricApiVersion == null) {
 version = "${mod_version}"
 group = maven_group
 base {
-	archivesName = 'tailcat-mc-fabric'
+	archivesName = 'hearthgate-fabric'
 }
 
 java {
@@ -35,7 +35,7 @@ loom {
 	// fails the build if main code references client-only classes.
 	splitEnvironmentSourceSets()
 	mods {
-		tailcatmc {
+		hearthgate {
 			sourceSet sourceSets.main
 			sourceSet sourceSets.client
 		}
@@ -45,7 +45,7 @@ loom {
 fabricApi {
 	configureTests {
 		createSourceSet = true
-		modId = 'tailcatmc-gametest'
+		modId = 'hearthgate-gametest'
 		enableGameTests = false
 		enableClientGameTests = true
 		eula = true
@@ -79,7 +79,7 @@ tasks.withType(JavaCompile).configureEach {
 
 jar {
 	from(rootProject.file('LICENSE')) {
-		rename { "LICENSE_tailcat-mc" }
+		rename { "LICENSE_hearthgate" }
 	}
 	from(rootProject.file('THIRD_PARTY_NOTICES.md'))
 }
@@ -91,7 +91,7 @@ jar {
 // CI builds one per platform on a runner of that platform.
 def core = project(':core')
 def nativePlatform = core.ext.nativePlatform
-def addonModId = 'tailcatmc_native_' + nativePlatform.replace('-', '_')
+def addonModId = 'hearthgate_native_' + nativePlatform.replace('-', '_')
 def addonMeta = layout.buildDirectory.dir("generated/native-addon/${nativePlatform}")
 
 def addonModJson = tasks.register('nativeAddonModJson') {
@@ -103,15 +103,15 @@ def addonModJson = tasks.register('nativeAddonModJson') {
 			schemaVersion: 1,
 			id: props.id,
 			version: props.version,
-			name: "Tailcat for Minecraft: native helper (${props.platform})",
+			name: "Hearthgate: native helper (${props.platform})",
 			description: "Optional add-on for dedicated servers on ${props.platform}: runs Tailcat's networking " +
 					"as native code instead of WebAssembly, for much higher throughput with many players. " +
-					"Requires Tailcat for Minecraft ${props.version}.",
-			authors: ['Tailcat for Minecraft contributors'],
-			contact: [sources: 'https://github.com/tailscale/tailcat'],
+					"Requires Hearthgate ${props.version}.",
+			authors: ['Hearthgate contributors'],
+			contact: [sources: 'https://github.com/eranderlik/tailcat-mc'],
 			license: 'BSD-3-Clause',
 			environment: '*',
-			depends: [tailcatmc: "=${props.version}"],
+			depends: [hearthgate: "=${props.version}"],
 		]
 		def f = addonMeta.get().file('fabric.mod.json').asFile
 		f.parentFile.mkdirs()
@@ -122,13 +122,13 @@ def addonModJson = tasks.register('nativeAddonModJson') {
 def nativeAddonJar = tasks.register('nativeAddonJar', Jar) {
 	description = "Packages the native helper add-on for ${nativePlatform}."
 	group = 'build'
-	archiveBaseName = "tailcat-mc-native-${nativePlatform}"
+	archiveBaseName = "hearthgate-native-${nativePlatform}"
 	destinationDirectory = layout.buildDirectory.dir('libs')
 	from(addonModJson)
 	from(core.tasks.named('buildHelperNative')) {
-		into "natives/tailcatmc/${nativePlatform}"
+		into "natives/hearthgate/${nativePlatform}"
 	}
-	from(rootProject.file('LICENSE')) { rename { 'LICENSE_tailcat-mc' } }
+	from(rootProject.file('LICENSE')) { rename { 'LICENSE_hearthgate' } }
 	from(rootProject.file('THIRD_PARTY_NOTICES.md'))
 }
 
@@ -139,14 +139,14 @@ tasks.matching { it.name == 'runClientGameTest' }.configureEach { t ->
 	if (useNative) {
 		t.dependsOn nativeAddonJar
 		t.jvmArgs '--enable-native-access=ALL-UNNAMED'
-		t.systemProperty 'tailcatmc.test.expectNative', 'true'
+		t.systemProperty 'hearthgate.test.expectNative', 'true'
 	}
 	def addon = nativeAddonJar.flatMap { it.archiveFile }
 	def runDir = file(loom.runs.getByName('clientGameTest').runDir)
 	t.doFirst {
 		def mods = new File(runDir, 'mods')
 		mods.mkdirs()
-		mods.listFiles().findAll { it.name.startsWith('tailcat-mc-native-') }.each { it.delete() }
+		mods.listFiles().findAll { it.name.startsWith('hearthgate-native-') }.each { it.delete() }
 		if (useNative) {
 			java.nio.file.Files.copy(addon.get().asFile.toPath(), new File(mods, addon.get().asFile.name).toPath())
 		}

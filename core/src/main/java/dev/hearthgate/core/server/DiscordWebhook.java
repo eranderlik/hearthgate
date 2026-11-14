@@ -1,4 +1,4 @@
-package dev.tailcatmc.core.server;
+package dev.hearthgate.core.server;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -37,7 +37,7 @@ public final class DiscordWebhook implements AutoCloseable {
 	private final URI url;
 	private final HttpClient http;
 	private final ExecutorService worker = Executors.newSingleThreadExecutor(r -> {
-		Thread t = new Thread(r, "tcmc-discord");
+		Thread t = new Thread(r, "hearthgate-discord");
 		t.setDaemon(true);
 		return t;
 	});
@@ -103,7 +103,7 @@ public final class DiscordWebhook implements AutoCloseable {
 		StringBuilder d = new StringBuilder();
 		if (a.online()) {
 			d.append("Minecraft ").append(a.minecraftVersion())
-					.append(". With the **Tailcat for Minecraft** mod, open **Multiplayer → Join with Tailcat** "
+					.append(". With the **Hearthgate** mod, open **Multiplayer → Join with Hearthgate** "
 							+ "and paste this invitation:\n```\n")
 					.append(a.invite()).append("\n```");
 		} else {
@@ -154,7 +154,7 @@ public final class DiscordWebhook implements AutoCloseable {
 			HttpRequest req = HttpRequest.newBuilder(uri)
 					.timeout(Duration.ofSeconds(20))
 					.header("Content-Type", "application/json")
-					.header("User-Agent", "TailcatForMinecraft (https://github.com/tailscale/tailcat, 1)")
+					.header("User-Agent", "Hearthgate (https://github.com/eranderlik/tailcat-mc, 1)")
 					.method(method, HttpRequest.BodyPublishers.ofString(body))
 					.build();
 			try {

@@ -39,10 +39,10 @@ index 0000000..6fcaf17
 +// The host imports take the 32-byte key on every call, so the host keeps no
 +// per-key state that could outlive the keypair.
 +
-+//go:wasmimport tcmc aead_seal
++//go:wasmimport hearthgate aead_seal
 +func hostAEADSeal(key, nonce, src unsafe.Pointer, srcLen uint32, ad unsafe.Pointer, adLen uint32, dst unsafe.Pointer) uint32
 +
-+//go:wasmimport tcmc aead_open
++//go:wasmimport hearthgate aead_open
 +func hostAEADOpen(key, nonce, src unsafe.Pointer, srcLen uint32, ad unsafe.Pointer, adLen uint32, dst unsafe.Pointer) uint32
 +
 +func chacha20poly1305New(key []byte) (cipher.AEAD, error) {

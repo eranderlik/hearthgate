@@ -1,9 +1,9 @@
-package dev.tailcatmc.core;
+package dev.hearthgate.core;
 
 import com.dylibso.chicory.runtime.Instance;
-import dev.tailcatmc.core.host.HelperHost;
-import dev.tailcatmc.core.host.NetworkPolicy;
-import dev.tailcatmc.core.wasm.TcmcHelper;
+import dev.hearthgate.core.host.HelperHost;
+import dev.hearthgate.core.host.NetworkPolicy;
+import dev.hearthgate.core.wasm.HearthgateHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,22 +44,22 @@ public final class HelperSession implements Helper {
 
 	private HelperSession(List<String> args, NetworkPolicy policy, Listener listener) throws IOException {
 		List<String> argv = new ArrayList<>();
-		argv.add("tcmc-helper");
+		argv.add("hearthgate-helper");
 		argv.addAll(args);
 		// A listener failure must not surface in the guest as an I/O error.
 		host = new HelperHost(argv, guestEnv(), policy, line -> safely(() -> listener.onEvent(line)),
 				line -> safely(() -> listener.onLog(line)));
-		thread = new Thread(null, () -> run(listener), "tcmc-helper-" + IDS.incrementAndGet(), THREAD_STACK);
+		thread = new Thread(null, () -> run(listener), "hearthgate-helper-" + IDS.incrementAndGet(), THREAD_STACK);
 		thread.setDaemon(true);
 	}
 
 	/**
 	 * The helper's environment: Go runtime settings from the
-	 * {@code tailcatmc.helperEnv} system property (comma-separated NAME=value),
+	 * {@code hearthgate.helperEnv} system property (comma-separated NAME=value),
 	 * defaulting to {@link #DEFAULT_ENV}.
 	 */
 	private static List<String> guestEnv() {
-		String p = System.getProperty("tailcatmc.helperEnv");
+		String p = System.getProperty("hearthgate.helperEnv");
 		if (p == null) {
 			return DEFAULT_ENV;
 		}
@@ -72,7 +72,7 @@ public final class HelperSession implements Helper {
 		try {
 			r.run();
 		} catch (RuntimeException e) {
-			org.slf4j.LoggerFactory.getLogger("tailcat-mc").error("Tailcat helper listener failed", e);
+			org.slf4j.LoggerFactory.getLogger("hearthgate").error("Hearthgate helper listener failed", e);
 		}
 	}
 
@@ -88,16 +88,16 @@ public final class HelperSession implements Helper {
 	 * first session starts quickly. Safe to call from any thread, repeatedly.
 	 */
 	public static void preload() {
-		TcmcHelper.load();
+		HearthgateHelper.load();
 	}
 
 	private void run(Listener listener) {
 		int code = -1;
 		Throwable error = null;
 		try {
-			Instance instance = Instance.builder(TcmcHelper.load())
+			Instance instance = Instance.builder(HearthgateHelper.load())
 					.withImportValues(host.imports())
-					.withMachineFactory(TcmcHelper::create)
+					.withMachineFactory(HearthgateHelper::create)
 					.withStart(false)
 					.build();
 			this.instance = instance;

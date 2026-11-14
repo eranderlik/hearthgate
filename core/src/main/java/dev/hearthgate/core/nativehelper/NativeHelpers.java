@@ -1,10 +1,10 @@
-package dev.tailcatmc.core.nativehelper;
+package dev.hearthgate.core.nativehelper;
 
 import com.google.gson.Gson;
-import dev.tailcatmc.core.Helper;
-import dev.tailcatmc.core.HelperBackend;
-import dev.tailcatmc.core.HelperSession;
-import dev.tailcatmc.core.host.NetworkPolicy;
+import dev.hearthgate.core.Helper;
+import dev.hearthgate.core.HelperBackend;
+import dev.hearthgate.core.HelperSession;
+import dev.hearthgate.core.host.NetworkPolicy;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,7 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Runs the helper as native Go, loaded into the JVM from a shared library
- * (helper/cmd/libtcmc) through the Foreign Function &amp; Memory API.
+ * (helper/cmd/libhearthgate) through the Foreign Function &amp; Memory API.
  *
  * <p>This is an optional accelerator for dedicated servers: tunnelled traffic
  * is many times faster than on the WebAssembly helper, at the cost of native
@@ -62,12 +62,12 @@ public final class NativeHelpers implements HelperBackend {
 	private NativeHelpers(String platform, SymbolLookup lib) {
 		this.platform = platform;
 		Linker linker = Linker.nativeLinker();
-		start = linker.downcallHandle(find(lib, "tcmc_start"),
+		start = linker.downcallHandle(find(lib, "hg_start"),
 				FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
-		next = linker.downcallHandle(find(lib, "tcmc_next"), FunctionDescriptor.of(ValueLayout.JAVA_INT,
+		next = linker.downcallHandle(find(lib, "hg_next"), FunctionDescriptor.of(ValueLayout.JAVA_INT,
 				ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
-		stop = linker.downcallHandle(find(lib, "tcmc_stop"), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
-		heapBytes = linker.downcallHandle(find(lib, "tcmc_heap_bytes"), FunctionDescriptor.of(ValueLayout.JAVA_LONG));
+		stop = linker.downcallHandle(find(lib, "hg_stop"), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+		heapBytes = linker.downcallHandle(find(lib, "hg_heap_bytes"), FunctionDescriptor.of(ValueLayout.JAVA_LONG));
 	}
 
 	/**
@@ -88,17 +88,17 @@ public final class NativeHelpers implements HelperBackend {
 		}
 		Linker linker = Linker.nativeLinker();
 		try {
-			int abi = (int) linker.downcallHandle(find(lib, "tcmc_abi_version"),
+			int abi = (int) linker.downcallHandle(find(lib, "hg_abi_version"),
 					FunctionDescriptor.of(ValueLayout.JAVA_INT)).invokeExact();
 			if (abi != ABI_VERSION) {
 				throw new IOException("library ABI " + abi + ", expected " + ABI_VERSION);
 			}
-			MemorySegment id = (MemorySegment) linker.downcallHandle(find(lib, "tcmc_build_id"),
+			MemorySegment id = (MemorySegment) linker.downcallHandle(find(lib, "hg_build_id"),
 					FunctionDescriptor.of(ValueLayout.ADDRESS)).invokeExact();
 			String buildId = id.reinterpret(256).getString(0);
 			String expected = expectedBuildId();
 			if (!buildId.equals(expected)) {
-				throw new IOException("the native add-on is for a different version of Tailcat for Minecraft "
+				throw new IOException("the native add-on is for a different version of Hearthgate "
 						+ "(helper build " + abbrev(buildId) + ", this mod needs " + abbrev(expected) + ")");
 			}
 		} catch (IOException | RuntimeException | Error e) {
@@ -250,7 +250,7 @@ public final class NativeHelpers implements HelperBackend {
 		Session(long handle, HelperSession.Listener listener) {
 			this.handle = handle;
 			this.listener = listener;
-			reader = new Thread(this::read, "tcmc-native-" + IDS.incrementAndGet());
+			reader = new Thread(this::read, "hearthgate-native-" + IDS.incrementAndGet());
 			reader.setDaemon(true);
 		}
 
@@ -348,7 +348,7 @@ public final class NativeHelpers implements HelperBackend {
 		try {
 			r.run();
 		} catch (RuntimeException e) {
-			org.slf4j.LoggerFactory.getLogger("tailcat-mc").error("Tailcat helper listener failed", e);
+			org.slf4j.LoggerFactory.getLogger("hearthgate").error("Hearthgate helper listener failed", e);
 		}
 	}
 }

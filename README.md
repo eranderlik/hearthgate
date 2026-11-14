@@ -1,18 +1,19 @@
-# Tailcat for Minecraft
+# Hearthgate
 
 Play your singleplayer world with friends on other networks, or keep a
 dedicated server reachable without port forwarding. No accounts, no VPN app,
 nothing to install but the mod.
 
-Click **Share with Tailcat** in the pause menu, send the invitation to a
-friend, and they paste it into **Multiplayer → Join with Tailcat**. The
+Click **Share with Hearthgate** in the pause menu, send the invitation to a
+friend, and they paste it into **Multiplayer → Join with Hearthgate**. The
 connection is a WireGuard® tunnel that goes peer-to-peer whenever NAT traversal
 succeeds (usually) and falls back to an encrypted relay when it doesn't, using
 Tailscale's open-source [Tailcat](https://github.com/tailscale/tailcat).
 
-This is the production successor of Tailscale's
+Hearthgate is an independent project, not affiliated with or endorsed by
+Tailscale. It started from Tailscale's
 [tailcat-for-minecraft](https://github.com/tailscale/tailcat-for-minecraft)
-demo. The demo bundled six native Go executables and launched one as a
+demo, which bundled six native Go executables and launched one as a
 subprocess. This mod compiles the Go networking code to WebAssembly and runs it
 **inside the game's JVM**, so it ships one platform-independent jar with no
 native code, no executables to sign, and nothing for antivirus software to
@@ -28,13 +29,13 @@ per-platform [native helper add-on](#native-helper-add-on-optional).
 
 ## Using it
 
-**Host:** open a world, press Esc, click **Share with Tailcat**, then
+**Host:** open a world, press Esc, click **Share with Hearthgate**, then
 **Copy Invitation**, and send it to your friends privately. The share screen
 shows who is connected and whether each connection is direct or relayed.
 Sharing stops when you click **Stop Sharing** or leave the world. A stopped
 invitation can't be used again.
 
-**Join:** **Multiplayer → Join with Tailcat** (top right), paste the
+**Join:** **Multiplayer → Join with Hearthgate** (top right), paste the
 invitation, and click **Connect**. If the host is on a different Minecraft
 version the screen warns you before you try.
 
@@ -46,13 +47,13 @@ and `/kick` and `/ban` work as usual.
 ## Dedicated servers
 
 Install the same jar (plus Fabric API) on a Fabric dedicated server. On
-startup it creates `config/tailcatmc-server.json` and starts hosting: the
+startup it creates `config/hearthgate-server.json` and starts hosting: the
 server is reachable through Tailcat for as long as it runs, as an alternative
 to opening a port on your router. Players join through **Multiplayer → Join
-with Tailcat**, exactly like a shared singleplayer world.
+with Hearthgate**, exactly like a shared singleplayer world.
 
 * **Stable invitation.** The server's identity (WireGuard key, pre-shared key,
-  relay region) is kept in `config/tailcatmc/identity.json`, which is created
+  relay region) is kept in `config/hearthgate/identity.json`, which is created
   readable only by its owner. Restarting the server doesn't change the
   invitation.
 * **Key rotation.** By default the keys rotate every 7 days, which retires the
@@ -62,7 +63,7 @@ with Tailcat**, exactly like a shared singleplayer world.
 * **Supervision.** If the helper exits or the relays are unreachable, it
   restarts with backoff (5 s up to 5 min).
 * **Discord.** Set `discord.webhook_url` (Channel settings → Integrations →
-  Webhooks), or the `TCMC_DISCORD_WEBHOOK` environment variable to keep the
+  Webhooks), or the `HEARTHGATE_DISCORD_WEBHOOK` environment variable to keep the
   secret out of the file. The server posts the invitation as an embed, edits
   **that same message** whenever the keys rotate, and marks it offline while
   the server is down. Anyone who can read the channel can connect, so use a
@@ -89,10 +90,10 @@ Operators (permission level 3) and the console have:
 
 | Command | |
 |---|---|
-| `/tailcat` or `/tailcat status` | State, players connected via Tailcat (direct/relayed), next rotation, last error |
-| `/tailcat invite` | Shows the invitation (click to copy) |
-| `/tailcat rotate` | Rotates keys now, e.g. if the invitation leaked |
-| `/tailcat announce` | Re-posts the announcement to Discord |
+| `/hearthgate` or `/hearthgate status` | State, players connected via Hearthgate (direct/relayed), next rotation, last error |
+| `/hearthgate invite` | Shows the invitation (click to copy) |
+| `/hearthgate rotate` | Rotates keys now, e.g. if the invitation leaked |
+| `/hearthgate announce` | Re-posts the announcement to Discord |
 
 The server forwards tunnel connections to its own `server-port` on loopback,
 or to `server-ip` if that is set. Its normal security settings all apply:
@@ -104,7 +105,7 @@ widely.
 The WebAssembly helper's throughput, about 2 MB/s each way, is plenty for a
 shared world, but on a server it is one budget shared by every player. For
 busier servers there is an add-on jar per platform,
-`tailcat-mc-native-<platform>-<version>.jar`. Put the one for your server's
+`hearthgate-native-<platform>-<version>.jar`. Put the one for your server's
 platform in `mods/` next to the mod, and the server runs Tailcat's networking
 as native Go instead:
 
@@ -118,12 +119,12 @@ as native Go instead:
 * It is the same Go helper, built as a shared library and called in-process
   through Java's Foreign Function & Memory API. There is no subprocess or
   executable, and nothing is downloaded. The library is extracted to
-  `.tailcatmc/natives/<hash>/` in the server directory and loaded from there.
+  `.hearthgate/natives/<hash>/` in the server directory and loaded from there.
 * The add-on must match the mod exactly. Fabric enforces the version, and the
   library carries a hash of the helper sources, which the mod checks. If the
   add-on is missing, for another platform, mismatched, or can't load (musl
   libc/Alpine, older glibc), the server logs why and uses WebAssembly.
-* `/tailcat status` shows which helper is running.
+* `/hearthgate status` shows which helper is running.
 * Java prints a one-time *restricted method* warning when the library loads.
   Add `--enable-native-access=ALL-UNNAMED` to the server's `java` command to
   allow it explicitly.
@@ -146,8 +147,8 @@ as native Go instead:
 ```
 
 * **`helper/`** is a small Go program built on the `tailcat` library
-  (commands in `internal/app`, shared by `cmd/tcmc-helper`, the WebAssembly
-  build, and `cmd/libtcmc`, the native add-on's C ABI). It serves
+  (commands in `internal/app`, shared by `cmd/hearthgate-helper`, the WebAssembly
+  build, and `cmd/libhearthgate`, the native add-on's C ABI). It serves
   one virtual port (25565) in the tunnel and proxies it to the integrated
   server (host), or listens on a loopback port that Minecraft connects to
   (join). It talks to the game as JSON lines on stdout and stops when stdin
@@ -158,7 +159,7 @@ as native Go instead:
   session gets its own WebAssembly instance, and so its own Go runtime, on a
   dedicated thread.
 * **`core/`** is the host environment that instance runs in: a WASI preview 1
-  implementation plus a small `tcmc` import module for sockets. WASI preview 1
+  implementation plus a small `hearthgate` import module for sockets. WASI preview 1
   can't create sockets, so the JVM provides them through Java NIO. Each socket
   appears to Go as a non-blocking file descriptor, so goroutines park in Go's
   normal wasip1 netpoller, and the runtime blocks in `poll_oneoff`, which the
@@ -176,11 +177,11 @@ as native Go instead:
   webhook client.
 * **`fabric/`** is the mod. `src/client` has two screens, two buttons, and
   session management; `src/main` has the dedicated-server entrypoint and
-  `/tailcat` command (Loom's split source sets keep the server side from
+  `/hearthgate` command (Loom's split source sets keep the server side from
   touching client classes).
   It is compiled against 26.1. The few APIs that changed by 26.3 (screen
   management, toasts, *Open to LAN*) are bound by name at startup in
-  [`Compat`](fabric/src/main/java/dev/tailcatmc/fabric/Compat.java). That
+  [`Compat`](fabric/src/main/java/dev/hearthgate/fabric/Compat.java). That
   works because Minecraft 26.x ships unobfuscated.
 
 ### Performance
@@ -202,7 +203,7 @@ scheduling running as WebAssembly. HotSpot declines to JIT-compile methods
 above 8,000 bytecodes, and several hot Go runtime functions exceed that.
 Players who can set JVM arguments gain about 25% with
 `-XX:-DontCompileHugeMethods`. Go runtime settings can be passed to the helper
-with `-Dtailcatmc.helperEnv=GOGC=400`, but GC tuning measured under 10%.
+with `-Dhearthgate.helperEnv=GOGC=400`, but GC tuning measured under 10%.
 
 On a server, the host helper's throughput is shared by all players. With the
 native add-on it stops being the bottleneck (same machine, through Tailcat's
@@ -225,7 +226,7 @@ download it) and **git** on `PATH`. Gradle provisions JDK 25 itself, both for
 the build and for its own daemon, so no JDK needs to be installed.
 
 ```sh
-./gradlew build           # mod jar: fabric/build/libs/tailcat-mc-fabric-<version>.jar
+./gradlew build           # mod jar: fabric/build/libs/hearthgate-fabric-<version>.jar
 ./gradlew :fabric:nativeAddonJar  # native add-on for this machine's platform (needs a C compiler for cgo)
 ```
 
@@ -271,15 +272,15 @@ tools/check-linkage.sh                         # 26.1-built jar links on every v
 The client game tests: (1) create a world, share it through the mod's UI, join
 it from a second in-process helper the way a remote player would, and
 server-list-ping the integrated server through the tunnel; (2) start a
-dedicated server with the mod, then join it through **Join with Tailcat** with
+dedicated server with the mod, then join it through **Join with Hearthgate** with
 its invitation and load into the world. Screenshots go to
 `fabric/build/run/clientGameTest/screenshots/`. CI
 (`.github/workflows/build.yml`) runs it on every supported version.
 
 For two-player testing with one Minecraft account, launch the host with
-`TCMC_DEV_OFFLINE_AUTH=1 ./gradlew :fabric:runClient`. It disables
+`HEARTHGATE_DEV_OFFLINE_AUTH=1 ./gradlew :fabric:runClient`. It disables
 authentication while sharing, works only in a development environment, and
-is restored when sharing stops. Set `TCMC_VERBOSE=1` for Tailcat's networking
+is restored when sharing stops. Set `HEARTHGATE_VERBOSE=1` for Tailcat's networking
 logs.
 
 ### Supporting a new Minecraft version
@@ -297,9 +298,15 @@ BSD-3-Clause (see [LICENSE](LICENSE)); bundled components are listed in
 relays are operated by Tailscale, are rate limited, and come with no uptime
 promise.
 
-"Tailscale" and "Tailcat" are trademarks of Tailscale Inc. This project isn't
-affiliated with or endorsed by Tailscale. Before publishing under this name,
-check Tailscale's trademark policy, or rename the mod (`id`, `name`, and
-translation strings).
+Hearthgate is an independent, community-made mod. It isn't affiliated with,
+sponsored by, or endorsed by Tailscale Inc. "Tailscale" is a registered
+trademark of Tailscale Inc., and "Tailcat" is the name of Tailscale's
+open-source library this mod uses. Those names appear here only to describe
+that library and to credit the demo this project started from. Please don't
+report Hearthgate issues to Tailscale.
+
+Minecraft is a trademark of Mojang Synergies AB. Hearthgate is not an official
+Minecraft product and is not approved by or associated with Mojang or
+Microsoft.
 
 WireGuard is a registered trademark of Jason A. Donenfeld.

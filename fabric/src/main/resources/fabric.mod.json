@@ -1,19 +1,19 @@
 {
 	"schemaVersion": 1,
-	"id": "tailcatmc",
+	"id": "hearthgate",
 	"version": "${version}",
-	"name": "Tailcat for Minecraft",
-	"description": "Play with friends on other networks with no port forwarding, accounts, or extra software: share a singleplayer world, or keep a dedicated server reachable (with Discord announcements). Peer-to-peer WireGuard tunnels via Tailcat, running entirely inside the game.",
-	"authors": ["Tailcat for Minecraft contributors"],
-	"contributors": ["Based on Tailscale's tailcat-for-minecraft demo"],
+	"name": "Hearthgate",
+	"description": "Play with friends on other networks with no port forwarding, accounts, or extra software: share a singleplayer world, or keep a dedicated server reachable (with Discord announcements). Peer-to-peer WireGuard tunnels built on Tailscale's open-source Tailcat library, running entirely inside the game. An independent project, not affiliated with or endorsed by Tailscale Inc.",
+	"authors": ["Hearthgate contributors"],
 	"contact": {
-		"sources": "https://github.com/tailscale/tailcat"
+		"sources": "https://github.com/eranderlik/tailcat-mc",
+		"issues": "https://github.com/eranderlik/tailcat-mc/issues"
 	},
 	"license": "BSD-3-Clause",
 	"environment": "*",
 	"entrypoints": {
-		"client": ["dev.tailcatmc.fabric.TailcatClient"],
-		"server": ["dev.tailcatmc.fabric.server.TailcatServer"]
+		"client": ["dev.hearthgate.fabric.HearthgateClient"],
+		"server": ["dev.hearthgate.fabric.server.HearthgateServer"]
 	},
 	"depends": {
 		"fabricloader": ">=0.20.1",

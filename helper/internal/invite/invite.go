@@ -1,12 +1,12 @@
 // Copyright (c) 2026 Tailscale Inc & contributors.
-// Copyright (c) 2026 Tailcat for Minecraft contributors.
+// Copyright (c) 2026 Hearthgate contributors.
 // SPDX-License-Identifier: BSD-3-Clause
 //
 // Derived from github.com/tailscale/tailcat-for-minecraft's invite package.
 
-// Package invite implements Tailcat for Minecraft invitation strings.
+// Package invite implements Hearthgate invitation strings.
 //
-// An invitation is the prefix "tcmc1_" followed by unpadded base64url JSON.
+// An invitation is the prefix "hg1_" followed by unpadded base64url JSON.
 // It wraps a secret Tailcat address: anyone holding the invitation can reach
 // the shared world for as long as the host keeps sharing.
 package invite
@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	Prefix         = "tcmc1_"
+	Prefix         = "hg1_"
 	CurrentVersion = 1
 	// maxEncodedLen bounds decoding work on pasted text. Addresses with full
 	// embedded DERP metadata are a few hundred bytes.

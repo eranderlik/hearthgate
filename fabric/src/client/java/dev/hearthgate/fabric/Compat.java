@@ -1,4 +1,4 @@
-package dev.tailcatmc.fabric;
+package dev.hearthgate.fabric;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.ToastManager;
@@ -72,7 +72,7 @@ public final class Compat {
 			LAN_SCOPE = scope;
 		} catch (ReflectiveOperationException e) {
 			throw new ExceptionInInitializerError(
-					"Tailcat for Minecraft does not support this Minecraft version: " + e);
+					"Hearthgate does not support this Minecraft version: " + e);
 		}
 	}
 

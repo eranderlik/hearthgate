@@ -1,8 +1,8 @@
-package dev.tailcatmc.core.server;
+package dev.hearthgate.core.server;
 
-import dev.tailcatmc.core.HelperEvent;
-import dev.tailcatmc.core.HelperSession;
-import dev.tailcatmc.core.host.NetworkPolicy;
+import dev.hearthgate.core.HelperEvent;
+import dev.hearthgate.core.HelperSession;
+import dev.hearthgate.core.host.NetworkPolicy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -34,12 +34,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * fake Discord. Opt in with {@code -PnetworkTests}.
  */
 class PersistentHostTest {
-	private static final Pattern INVITE = Pattern.compile("tcmc1_[A-Za-z0-9_-]+");
+	private static final Pattern INVITE = Pattern.compile("hg1_[A-Za-z0-9_-]+");
 
 	@Test
 	@Timeout(value = 6, unit = TimeUnit.MINUTES)
 	void stableAcrossRestartsRotatesAndAnnounces(@TempDir Path dir) throws Exception {
-		Assumptions.assumeTrue(Boolean.getBoolean("tcmc.networkTests"), "network tests disabled");
+		Assumptions.assumeTrue(Boolean.getBoolean("hearthgate.networkTests"), "network tests disabled");
 		try (ServerSocket mc = new ServerSocket(0, 50, InetAddress.getLoopbackAddress());
 				FakeDiscord discord = new FakeDiscord()) {
 			Thread echo = new Thread(() -> serveEcho(mc));
@@ -48,7 +48,7 @@ class PersistentHostTest {
 
 			ServerConfig cfg = new ServerConfig();
 			cfg.rotateAfterHours = 0; // rotate manually below
-			Path idFile = dir.resolve("tailcatmc/identity.json");
+			Path idFile = dir.resolve("hearthgate/identity.json");
 			PersistentHost.Options opts = new PersistentHost.Options(
 					new InetSocketAddress(InetAddress.getLoopbackAddress(), mc.getLocalPort()), "test", "Test Server",
 					idFile, cfg);

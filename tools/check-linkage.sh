@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 VERSIONS=$(sed -n 's/^fabric_api_\([0-9.]*\)=.*/\1/p' gradle.properties)
-JAR=$(ls fabric/build/libs/tailcat-mc-fabric-*.jar | grep -v sources | head -1)
+JAR=$(ls fabric/build/libs/hearthgate-fabric-*.jar | grep -v sources | head -1)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 (cd "$WORK" && unzip -q "$OLDPWD/$JAR" 'dev/*')

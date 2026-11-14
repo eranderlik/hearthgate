@@ -1,10 +1,10 @@
-package dev.tailcatmc.core.server;
+package dev.hearthgate.core.server;
 
-import dev.tailcatmc.core.Helper;
-import dev.tailcatmc.core.HelperBackend;
-import dev.tailcatmc.core.HelperEvent;
-import dev.tailcatmc.core.HelperSession;
-import dev.tailcatmc.core.host.NetworkPolicy;
+import dev.hearthgate.core.Helper;
+import dev.hearthgate.core.HelperBackend;
+import dev.hearthgate.core.HelperEvent;
+import dev.hearthgate.core.HelperSession;
+import dev.hearthgate.core.host.NetworkPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,7 +42,7 @@ import java.util.concurrent.TimeoutException;
  * <p>All state lives on one scheduler thread; helper events are hopped onto it.
  */
 public final class PersistentHost implements AutoCloseable {
-	static final Logger LOG = LoggerFactory.getLogger("tailcat-mc");
+	static final Logger LOG = LoggerFactory.getLogger("hearthgate");
 	private static final Duration MIN_BACKOFF = Duration.ofSeconds(5);
 	private static final Duration MAX_BACKOFF = Duration.ofMinutes(5);
 	private static final long KEYGEN_TIMEOUT_S = 60;
@@ -62,14 +62,14 @@ public final class PersistentHost implements AutoCloseable {
 		}
 	}
 
-	/** A snapshot for the {@code /tailcat status} command. */
+	/** A snapshot for the {@code /hearthgate status} command. */
 	public record Status(String state, String invite, Instant validUntil, int players, int directPlayers,
 			int drainingTunnels, String lastError, String engine) {}
 
 	private final Options opts;
 	private final DiscordWebhook discord;
 	private final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor(r -> {
-		Thread t = new Thread(r, "tcmc-server");
+		Thread t = new Thread(r, "hearthgate-server");
 		t.setDaemon(true);
 		return t;
 	});
@@ -104,7 +104,7 @@ public final class PersistentHost implements AutoCloseable {
 			try {
 				e = HelperEvent.parse(line);
 			} catch (IOException ex) {
-				LOG.error("Bad event from Tailcat helper: {}", ex.getMessage());
+				LOG.error("Bad event from Hearthgate helper: {}", ex.getMessage());
 				return;
 			}
 			post(() -> handle(this, e));
@@ -117,8 +117,8 @@ public final class PersistentHost implements AutoCloseable {
 
 		@Override
 		public void onExit(int code, Throwable error) {
-			if (error != null && !(error instanceof dev.tailcatmc.core.host.HelperHost.Killed)) {
-				LOG.error("Tailcat helper crashed", error);
+			if (error != null && !(error instanceof dev.hearthgate.core.host.HelperHost.Killed)) {
+				LOG.error("Hearthgate helper crashed", error);
 			}
 			post(() -> exited(this));
 		}
@@ -202,7 +202,7 @@ public final class PersistentHost implements AutoCloseable {
 			}
 		} catch (Exception e) {
 			lastError = "could not load or create the Tailcat identity: " + e.getMessage();
-			LOG.error("Tailcat: {}", lastError, e);
+			LOG.error("Hearthgate: {}", lastError, e);
 			failures++;
 			restartTask = exec.schedule(this::bringUp, backoff().toMillis(), TimeUnit.MILLISECONDS);
 			updateStatus();
@@ -257,7 +257,7 @@ public final class PersistentHost implements AutoCloseable {
 		try {
 			t.helper = opts.backend().start(args, policy, t);
 		} catch (IOException e) {
-			lastError = "could not start the Tailcat helper: " + e.getMessage();
+			lastError = "could not start the Hearthgate helper: " + e.getMessage();
 			post(() -> exited(t));
 		}
 		return t;
@@ -277,13 +277,13 @@ public final class PersistentHost implements AutoCloseable {
 			case "peers" -> {
 				t.peers = e.peers();
 				if (draining.contains(t) && t.peers.isEmpty()) {
-					LOG.info("Tailcat: previous tunnel has no players left; closing it");
+					LOG.info("Hearthgate: previous tunnel has no players left; closing it");
 					closeDraining(t);
 				}
 			}
 			case "error" -> {
 				lastError = e.code() + ": " + e.message();
-				LOG.warn("Tailcat helper error: {}", lastError);
+				LOG.warn("Hearthgate helper error: {}", lastError);
 			}
 			default -> {
 			}
@@ -304,13 +304,13 @@ public final class PersistentHost implements AutoCloseable {
 			if (old != null) {
 				retire(old);
 			}
-			LOG.info("Tailcat: keys rotated; a new invitation is in effect");
+			LOG.info("Hearthgate: keys rotated; a new invitation is in effect");
 		}
 		if (t == active) {
 			failures = 0;
 			lastError = null;
 			saveIdentity();
-			LOG.info("Tailcat: server is reachable. Run /tailcat invite to see the invitation{}",
+			LOG.info("Hearthgate: server is reachable. Run /hearthgate invite to see the invitation{}",
 					discord != null ? " (also posted to Discord)" : "");
 			publish();
 			scheduleRotation();
@@ -328,10 +328,10 @@ public final class PersistentHost implements AutoCloseable {
 			if (failures % 3 == 0 && identity.region != 0) {
 				// The pinned relay region may have been retired; let the
 				// helper choose again (this changes the invitation).
-				LOG.warn("Tailcat: repeated failures with relay region {}; trying another", identity.region);
+				LOG.warn("Hearthgate: repeated failures with relay region {}; trying another", identity.region);
 				identity.region = 0;
 			}
-			LOG.warn("Tailcat helper stopped; restarting in {}s", delay.toSeconds());
+			LOG.warn("Hearthgate helper stopped; restarting in {}s", delay.toSeconds());
 			restartTask = exec.schedule(() -> {
 				if (!closed && active == null) {
 					active = startTunnel(identity);
@@ -342,7 +342,7 @@ public final class PersistentHost implements AutoCloseable {
 			candidate = null;
 			failures++;
 			Duration delay = backoff();
-			LOG.warn("Tailcat: new keys' tunnel failed to start; retrying rotation in {}s", delay.toSeconds());
+			LOG.warn("Hearthgate: new keys' tunnel failed to start; retrying rotation in {}s", delay.toSeconds());
 			rotationTask = exec.schedule(this::rotate, delay.toMillis(), TimeUnit.MILLISECONDS);
 		} else {
 			draining.remove(t);
@@ -377,11 +377,11 @@ public final class PersistentHost implements AutoCloseable {
 			return;
 		}
 		try {
-			LOG.info("Tailcat: rotating keys");
+			LOG.info("Hearthgate: rotating keys");
 			candidate = startTunnel(generate(identity));
 		} catch (Exception e) {
 			lastError = "key rotation failed: " + e.getMessage();
-			LOG.error("Tailcat: {}", lastError);
+			LOG.error("Hearthgate: {}", lastError);
 			failures++;
 			rotationTask = exec.schedule(this::rotate, backoff().toMillis(), TimeUnit.MILLISECONDS);
 		}
@@ -395,7 +395,7 @@ public final class PersistentHost implements AutoCloseable {
 		}
 		draining.add(old);
 		Duration drain = opts.config().drain();
-		LOG.info("Tailcat: previous tunnel keeps serving {} player(s) for up to {} minutes",
+		LOG.info("Hearthgate: previous tunnel keeps serving {} player(s) for up to {} minutes",
 				old.peers.size(), drain.toMinutes());
 		old.drainTimeout = exec.schedule(() -> closeDraining(old), drain.toMillis(), TimeUnit.MILLISECONDS);
 	}
@@ -410,7 +410,7 @@ public final class PersistentHost implements AutoCloseable {
 		try {
 			identity.save(opts.identityFile());
 		} catch (IOException e) {
-			LOG.error("Tailcat: could not save identity: {}", e.getMessage());
+			LOG.error("Hearthgate: could not save identity: {}", e.getMessage());
 		}
 	}
 
@@ -432,7 +432,7 @@ public final class PersistentHost implements AutoCloseable {
 		discord.publish(edit ? id.discordMessageId : null, a).whenCompleteAsync((messageId, err) -> {
 			if (err != null) {
 				lastError = "Discord: " + rootMessage(err);
-				LOG.error("Tailcat: could not post to Discord: {}", rootMessage(err));
+				LOG.error("Hearthgate: could not post to Discord: {}", rootMessage(err));
 				return;
 			}
 			announcedOnline = true;
@@ -441,7 +441,7 @@ public final class PersistentHost implements AutoCloseable {
 			if (id == identity) {
 				saveIdentity();
 			}
-			LOG.info("Tailcat: invitation posted to Discord");
+			LOG.info("Hearthgate: invitation posted to Discord");
 			updateStatus();
 		}, exec);
 	}
@@ -503,7 +503,7 @@ public final class PersistentHost implements AutoCloseable {
 		try {
 			offline.get(8, TimeUnit.SECONDS);
 		} catch (Exception e) {
-			LOG.warn("Tailcat: could not mark the Discord message offline: {}", rootMessage(e));
+			LOG.warn("Hearthgate: could not mark the Discord message offline: {}", rootMessage(e));
 		}
 		exec.shutdown();
 		if (discord != null) {

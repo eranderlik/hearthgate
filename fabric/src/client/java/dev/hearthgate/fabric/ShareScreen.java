@@ -1,6 +1,6 @@
-package dev.tailcatmc.fabric;
+package dev.hearthgate.fabric;
 
-import dev.tailcatmc.core.HelperEvent;
+import dev.hearthgate.core.HelperEvent;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.MultiLineTextWidget;
@@ -26,7 +26,7 @@ public final class ShareScreen extends Screen {
 	private int shownPeers = -1;
 
 	public ShareScreen(Screen parent) {
-		super(Component.translatable("tailcatmc.share.title"));
+		super(Component.translatable("hearthgate.share.title"));
 		this.parent = parent;
 	}
 
@@ -39,28 +39,28 @@ public final class ShareScreen extends Screen {
 		invite = addRenderableWidget(Ui.centered(Component.empty(), font, width, top + 44));
 		peers = addRenderableWidget(Ui.centered(Component.empty(), font, width, top + 62));
 
-		copy = addRenderableWidget(Button.builder(Component.translatable("tailcatmc.share.copy"), b -> {
-			Sessions.Status s = TailcatClient.sessions().status();
+		copy = addRenderableWidget(Button.builder(Component.translatable("hearthgate.share.copy"), b -> {
+			Sessions.Status s = HearthgateClient.sessions().status();
 			if (s != null && s.invite() != null) {
 				minecraft.keyboardHandler.setClipboard(s.invite());
-				b.setMessage(Component.translatable("tailcatmc.share.copied"));
+				b.setMessage(Component.translatable("hearthgate.share.copied"));
 			}
 		}).bounds(cx - 155, top + 88, 150, 20).build());
-		copy.setTooltip(Tooltip.create(Component.translatable("tailcatmc.share.copy_tooltip")));
-		addRenderableWidget(Button.builder(Component.translatable("tailcatmc.share.stop"), b -> {
-			TailcatClient.sessions().stop();
+		copy.setTooltip(Tooltip.create(Component.translatable("hearthgate.share.copy_tooltip")));
+		addRenderableWidget(Button.builder(Component.translatable("hearthgate.share.stop"), b -> {
+			HearthgateClient.sessions().stop();
 			onClose();
 		}).bounds(cx + 5, top + 88, 150, 20).build());
 		addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())
 				.bounds(cx - 100, top + 116, 200, 20).build());
-		addRenderableWidget(Ui.centered(Component.translatable("tailcatmc.share.secret_hint")
+		addRenderableWidget(Ui.centered(Component.translatable("hearthgate.share.secret_hint")
 				.withStyle(ChatFormatting.GRAY), font, width, top + 146));
 
 		shownInvite = null;
 		shownPeers = -1;
 		if (!requested) {
 			requested = true;
-			TailcatClient.sessions().share().whenComplete((value, err) -> minecraft.execute(() -> {
+			HearthgateClient.sessions().share().whenComplete((value, err) -> minecraft.execute(() -> {
 				if (err != null) {
 					error = ErrorMessages.rootMessage(err);
 				}
@@ -75,22 +75,22 @@ public final class ShareScreen extends Screen {
 	}
 
 	private void refresh() {
-		Sessions.Status s = TailcatClient.sessions().status();
+		Sessions.Status s = HearthgateClient.sessions().status();
 		boolean ready = s != null && s.mode() == Sessions.Mode.HOST && s.ready();
 		copy.active = ready;
 		if (error != null) {
-			Ui.set(status, Component.translatable("tailcatmc.share.failed", error).withStyle(ChatFormatting.RED), width);
+			Ui.set(status, Component.translatable("hearthgate.share.failed", error).withStyle(ChatFormatting.RED), width);
 			Ui.set(invite, Component.empty(), width);
 			Ui.set(peers, Component.empty(), width);
 			return;
 		}
 		if (!ready) {
-			Ui.set(status, Component.translatable("tailcatmc.starting"), width);
+			Ui.set(status, Component.translatable("hearthgate.starting"), width);
 			return;
 		}
 		if (!s.invite().equals(shownInvite)) {
 			shownInvite = s.invite();
-			Ui.set(status, Component.translatable("tailcatmc.share.sharing").withStyle(ChatFormatting.GREEN), width);
+			Ui.set(status, Component.translatable("hearthgate.share.sharing").withStyle(ChatFormatting.GREEN), width);
 			Ui.set(invite, Component.literal(Ui.shorten(s.invite(), 44)).withStyle(ChatFormatting.GRAY), width);
 		}
 		if (s.peers().size() != shownPeers || shownPeers > 0) {
@@ -101,11 +101,11 @@ public final class ShareScreen extends Screen {
 
 	private static Component describePeers(Sessions.Status s) {
 		if (s.peers().isEmpty()) {
-			return Component.translatable("tailcatmc.share.no_players").withStyle(ChatFormatting.GRAY);
+			return Component.translatable("hearthgate.share.no_players").withStyle(ChatFormatting.GRAY);
 		}
 		long direct = s.peers().stream().filter(HelperEvent.Peer::direct).count();
 		long relayed = s.peers().size() - direct;
-		return Component.translatable("tailcatmc.share.players", s.peers().size(), direct, relayed);
+		return Component.translatable("hearthgate.share.players", s.peers().size(), direct, relayed);
 	}
 
 	@Override

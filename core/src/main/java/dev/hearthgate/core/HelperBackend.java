@@ -1,13 +1,13 @@
-package dev.tailcatmc.core;
+package dev.hearthgate.core;
 
-import dev.tailcatmc.core.host.NetworkPolicy;
+import dev.hearthgate.core.host.NetworkPolicy;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
  * Runs helper sessions. {@link #WASM} works everywhere; a dedicated server
- * can use {@link dev.tailcatmc.core.nativehelper.NativeHelpers} instead.
+ * can use {@link dev.hearthgate.core.nativehelper.NativeHelpers} instead.
  */
 public interface HelperBackend {
 	/**

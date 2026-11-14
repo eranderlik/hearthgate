@@ -1,4 +1,4 @@
-package dev.tailcatmc.core;
+package dev.hearthgate.core;
 
 import java.util.concurrent.CompletableFuture;
 

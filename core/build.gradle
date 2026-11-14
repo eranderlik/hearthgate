@@ -5,7 +5,7 @@
 // Pipeline (all incremental):
 //   vendorHelper     go mod vendor                     -> helper/vendor
 //   patchHelper      git apply helper/patches/*.patch  -> helper/vendor
-//   buildHelperWasm  GOOS=wasip1 go build              -> build/helper/tcmc-helper.wasm
+//   buildHelperWasm  GOOS=wasip1 go build              -> build/helper/hearthgate-helper.wasm
 //   aotHelper        Chicory build-time compiler       -> build/generated/chicory/{src,classes,wasm}
 //   helperBuildId    SHA-256 of the helper's sources   -> build/generated/buildid (a resource)
 //
@@ -71,9 +71,9 @@ def onPath = { String name ->
 }
 def goExe = providers.gradleProperty('go').orElse(providers.environmentVariable('GO')).orElse(providers.provider { onPath('go') })
 def gitExe = providers.gradleProperty('git').orElse(providers.provider { onPath('git') })
-def helperWasm = layout.buildDirectory.file('helper/tcmc-helper.wasm')
+def helperWasm = layout.buildDirectory.file('helper/hearthgate-helper.wasm')
 def generatedDir = layout.buildDirectory.dir('generated/chicory')
-def helperClassName = 'dev.tailcatmc.core.wasm.TcmcHelper'
+def helperClassName = 'dev.hearthgate.core.wasm.HearthgateHelper'
 
 def helperSources = fileTree(helperDir) {
 	include '**/*.go', 'go.mod', 'go.sum', 'build-tags.txt', 'patches/*.patch'
@@ -118,7 +118,7 @@ def buildHelperWasm = tasks.register('buildHelperWasm', Exec) {
 	doFirst {
 		def tags = helperDir.file('build-tags.txt').asFile.text.trim()
 		commandLine goExe.get(), 'build', '-trimpath', '-buildvcs=false', '-tags', tags,
-				'-ldflags=-s -w', '-o', helperWasm.get().asFile.absolutePath, './cmd/tcmc-helper'
+				'-ldflags=-s -w', '-o', helperWasm.get().asFile.absolutePath, './cmd/hearthgate-helper'
 	}
 }
 
@@ -162,7 +162,7 @@ def helperBuildId = tasks.register('helperBuildId') {
 			md.update(new File(root, rel).getText('UTF-8').replace('\r\n', '\n').getBytes('UTF-8'))
 			md.update((byte) 0)
 		}
-		def f = out.get().file('dev/tailcatmc/core/helper-build-id').asFile
+		def f = out.get().file('dev/hearthgate/core/helper-build-id').asFile
 		f.parentFile.mkdirs()
 		f.text = md.digest().encodeHex().toString() + '\n'
 	}
@@ -184,8 +184,8 @@ def nativePlatform = providers.gradleProperty('nativePlatform').getOrElse(hostPl
 if (!goTargets.containsKey(nativePlatform)) {
 	throw new GradleException("Unknown nativePlatform ${nativePlatform}; expected one of ${goTargets.keySet()}")
 }
-def nativeLibName = nativePlatform.startsWith('windows') ? 'tcmc.dll'
-		: nativePlatform.startsWith('macos') ? 'libtcmc.dylib' : 'libtcmc.so'
+def nativeLibName = nativePlatform.startsWith('windows') ? 'hearthgate.dll'
+		: nativePlatform.startsWith('macos') ? 'libhearthgate.dylib' : 'libhearthgate.so'
 def nativeLib = layout.buildDirectory.file("native/${nativePlatform}/${nativeLibName}")
 ext.nativePlatform = nativePlatform
 ext.nativeLib = nativeLib
@@ -207,9 +207,9 @@ def buildHelperNative = tasks.register('buildHelperNative', Exec) {
 	if (cc.isPresent()) { environment 'CC', cc.get() }
 	doFirst {
 		def tags = helperDir.file('build-tags.txt').asFile.text.trim()
-		def id = buildIdDir.get().file('dev/tailcatmc/core/helper-build-id').asFile.text.trim()
+		def id = buildIdDir.get().file('dev/hearthgate/core/helper-build-id').asFile.text.trim()
 		commandLine goExe.get(), 'build', '-trimpath', '-buildvcs=false', '-tags', tags, '-buildmode=c-shared',
-				"-ldflags=-s -w -X main.buildID=${id}", '-o', nativeLib.get().asFile.absolutePath, './cmd/libtcmc'
+				"-ldflags=-s -w -X main.buildID=${id}", '-o', nativeLib.get().asFile.absolutePath, './cmd/libhearthgate'
 	}
 	doLast {
 		// cgo also writes a C header next to the library; it isn't shipped.
@@ -248,18 +248,18 @@ tasks.withType(JavaCompile).configureEach {
 tasks.named('test', Test) {
 	useJUnitPlatform()
 	// Network tests reach Tailcat's public relays; opt in with -PnetworkTests.
-	systemProperty 'tcmc.networkTests', providers.gradleProperty('networkTests').isPresent()
+	systemProperty 'hearthgate.networkTests', providers.gradleProperty('networkTests').isPresent()
 	maxHeapSize = '2g'
 	if (providers.gradleProperty('testHuge').isPresent()) { jvmArgs '-XX:-DontCompileHugeMethods' }
 	// -PtestNative also runs the end-to-end tests on the native helper.
 	if (providers.gradleProperty('testNative').isPresent()) {
 		dependsOn buildHelperNative
-		systemProperty 'tcmc.nativeLibrary', nativeLib.get().asFile.absolutePath
-		systemProperty 'tcmc.nativePlatform', nativePlatform
+		systemProperty 'hearthgate.nativeLibrary', nativeLib.get().asFile.absolutePath
+		systemProperty 'hearthgate.nativePlatform', nativePlatform
 		jvmArgs '--enable-native-access=ALL-UNNAMED'
 	}
 	def helperEnv = providers.gradleProperty('helperEnv')
-	if (helperEnv.isPresent()) { systemProperty 'tailcatmc.helperEnv', helperEnv.get() }
+	if (helperEnv.isPresent()) { systemProperty 'hearthgate.helperEnv', helperEnv.get() }
 	// -PtestJfr=path records a Java Flight Recorder profile of the tests.
 	def jfr = providers.gradleProperty('testJfr')
 	if (jfr.isPresent()) {

@@ -1,4 +1,4 @@
-package dev.tailcatmc.core.server;
+package dev.hearthgate.core.server;
 
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
@@ -16,7 +16,7 @@ import java.time.Instant;
 
 /**
  * The server's persistent Tailcat identity and publishing state, stored in
- * {@code config/tailcatmc/identity.json}. The keys are secrets: the file is
+ * {@code config/hearthgate/identity.json}. The keys are secrets: the file is
  * created readable only by its owner where the filesystem supports it.
  */
 public final class Identity {

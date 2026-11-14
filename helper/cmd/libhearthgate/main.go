@@ -1,11 +1,11 @@
-// Command libtcmc builds the helper as a native shared library
+// Command libhearthgate builds the helper as a native shared library
 // (-buildmode=c-shared) that a dedicated Minecraft server loads into its JVM
 // with the Foreign Function & Memory API. It runs exactly the same commands
 // as the WebAssembly helper (package app), but as native Go, for servers
 // whose players need more throughput than the WebAssembly build provides.
 //
 // The ABI is deliberately small and never calls back into the JVM: Java
-// starts a session, then a Java thread per session blocks in tcmc_next to
+// starts a session, then a Java thread per session blocks in hg_next to
 // receive its output. Each record starts with one tag byte:
 //
 //	'E' an event line (JSON, as on the WebAssembly helper's stdout)
@@ -30,7 +30,7 @@ import (
 	"time"
 	"unsafe"
 
-	"tailcatmc/helper/internal/app"
+	"hearthgate/helper/internal/app"
 )
 
 // abiVersion changes whenever a function's signature or meaning changes.
@@ -65,13 +65,13 @@ var (
 	nextID   int64
 )
 
-//export tcmc_abi_version
-func tcmc_abi_version() C.int32_t { return abiVersion }
+//export hg_abi_version
+func hg_abi_version() C.int32_t { return abiVersion }
 
 var buildIDC *C.char
 
-//export tcmc_build_id
-func tcmc_build_id() *C.char {
+//export hg_build_id
+func hg_build_id() *C.char {
 	mu.Lock()
 	defer mu.Unlock()
 	if buildIDC == nil {
@@ -80,12 +80,12 @@ func tcmc_build_id() *C.char {
 	return buildIDC
 }
 
-// tcmc_start starts a session. argsJSON is a JSON array of strings: the
+// hg_start starts a session. argsJSON is a JSON array of strings: the
 // command and its flags, as for the helper executable. It returns a handle
 // (> 0), or 0 if argsJSON is malformed.
 //
-//export tcmc_start
-func tcmc_start(argsJSON *C.char) C.int64_t {
+//export hg_start
+func hg_start(argsJSON *C.char) C.int64_t {
 	var args []string
 	if err := json.Unmarshal([]byte(C.GoString(argsJSON)), &args); err != nil {
 		return 0
@@ -113,13 +113,13 @@ func tcmc_start(argsJSON *C.char) C.int64_t {
 	return C.int64_t(id)
 }
 
-// tcmc_next waits up to timeoutMs for the session's next record and copies
+// hg_next waits up to timeoutMs for the session's next record and copies
 // it into buf (truncated to capacity bytes). It returns the record's length,
 // 0 on timeout, or -1 if handle is unknown or its 'X' record was already
 // returned, in which case the handle has been released.
 //
-//export tcmc_next
-func tcmc_next(handle C.int64_t, buf *C.char, capacity C.int32_t, timeoutMs C.int32_t) C.int32_t {
+//export hg_next
+func hg_next(handle C.int64_t, buf *C.char, capacity C.int32_t, timeoutMs C.int32_t) C.int32_t {
 	mu.Lock()
 	s := sessions[int64(handle)]
 	mu.Unlock()
@@ -149,11 +149,11 @@ func tcmc_next(handle C.int64_t, buf *C.char, capacity C.int32_t, timeoutMs C.in
 	return C.int32_t(n)
 }
 
-// tcmc_stop asks a session to shut down, like closing the helper's stdin.
-// Its remaining records, ending with 'X', are still delivered by tcmc_next.
+// hg_stop asks a session to shut down, like closing the helper's stdin.
+// Its remaining records, ending with 'X', are still delivered by hg_next.
 //
-//export tcmc_stop
-func tcmc_stop(handle C.int64_t) {
+//export hg_stop
+func hg_stop(handle C.int64_t) {
 	mu.Lock()
 	s := sessions[int64(handle)]
 	mu.Unlock()
@@ -162,10 +162,10 @@ func tcmc_stop(handle C.int64_t) {
 	}
 }
 
-// tcmc_heap_bytes reports the Go heap in use by all sessions, for diagnostics.
+// hg_heap_bytes reports the Go heap in use by all sessions, for diagnostics.
 //
-//export tcmc_heap_bytes
-func tcmc_heap_bytes() C.int64_t {
+//export hg_heap_bytes
+func hg_heap_bytes() C.int64_t {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 	return C.int64_t(m.HeapInuse)

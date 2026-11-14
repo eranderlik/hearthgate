@@ -1,9 +1,9 @@
-package dev.tailcatmc.core.nativehelper;
+package dev.hearthgate.core.nativehelper;
 
-import dev.tailcatmc.core.Helper;
-import dev.tailcatmc.core.HelperEvent;
-import dev.tailcatmc.core.Recorder;
-import dev.tailcatmc.core.host.NetworkPolicy;
+import dev.hearthgate.core.Helper;
+import dev.hearthgate.core.HelperEvent;
+import dev.hearthgate.core.Recorder;
+import dev.hearthgate.core.host.NetworkPolicy;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -21,13 +21,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NativeHelpersTest {
 	@Test
 	void extractIsContentAddressedAndReplacesOldVersions(@TempDir Path tmp) throws Exception {
-		Path v1 = Files.writeString(tmp.resolve("libtcmc.so"), "one");
+		Path v1 = Files.writeString(tmp.resolve("libhearthgate.so"), "one");
 		Path cache = tmp.resolve("cache");
 		Path a = NativeHelpers.extract(v1, cache);
 		assertEquals("one", Files.readString(a));
 		assertEquals(a, NativeHelpers.extract(v1, cache), "same content reuses the file");
 
-		Path v2 = Files.writeString(Files.createDirectory(tmp.resolve("other")).resolve("libtcmc.so"), "two");
+		Path v2 = Files.writeString(Files.createDirectory(tmp.resolve("other")).resolve("libhearthgate.so"), "two");
 		Path b = NativeHelpers.extract(v2, cache);
 		assertEquals("two", Files.readString(b));
 		assertFalse(Files.exists(a), "previous version removed");
@@ -40,14 +40,14 @@ class NativeHelpersTest {
 	void platformNames() {
 		String p = NativePlatform.current();
 		assertNotNull(p);
-		assertEquals("tailcatmc_native_linux_x86_64", NativePlatform.addonModId("linux-x86_64"));
-		assertEquals("tcmc.dll", NativePlatform.libraryName("windows-x86_64"));
+		assertEquals("hearthgate_native_linux_x86_64", NativePlatform.addonModId("linux-x86_64"));
+		assertEquals("hearthgate.dll", NativePlatform.libraryName("windows-x86_64"));
 	}
 
 	private static NativeHelpers lib() throws Exception {
-		String lib = System.getProperty("tcmc.nativeLibrary");
+		String lib = System.getProperty("hearthgate.nativeLibrary");
 		Assumptions.assumeTrue(lib != null, "native tests need -PtestNative");
-		assertEquals(System.getProperty("tcmc.nativePlatform"), NativePlatform.current());
+		assertEquals(System.getProperty("hearthgate.nativePlatform"), NativePlatform.current());
 		assertTrue(NativeHelpers.nativeAccessEnabled());
 		return NativeHelpers.load(Path.of(lib), NativePlatform.current());
 	}
@@ -65,7 +65,7 @@ class NativeHelpersTest {
 	@Test
 	void reportsErrorsLikeTheWasmHelper() throws Exception {
 		Recorder r = new Recorder("bad");
-		lib().start(List.of("join", "--invite", "tcmc1_notbase64!"), NetworkPolicy.forJoin(), r);
+		lib().start(List.of("join", "--invite", "hg1_notbase64!"), NetworkPolicy.forJoin(), r);
 		HelperEvent e = r.next(10);
 		assertEquals("error", e.type());
 		assertEquals("invalid_invite", e.code());

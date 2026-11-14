@@ -1,4 +1,4 @@
-package dev.tailcatmc.core.host;
+package dev.hearthgate.core.host;
 
 import org.junit.jupiter.api.Test;
 

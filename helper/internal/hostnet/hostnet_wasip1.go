@@ -3,7 +3,7 @@
 // Package hostnet supplies the helper's sockets from the embedding JVM.
 //
 // WASI preview 1 cannot create sockets, so the Java host exposes them through
-// the "tcmc" import module. Each host socket is also a WASI file descriptor
+// the "hearthgate" import module. Each host socket is also a WASI file descriptor
 // whose fdstat reports FDFLAG_NONBLOCK. That makes os.NewFile register it with
 // the Go runtime's wasip1 netpoller, so a goroutine waiting on a socket parks
 // and the runtime blocks in poll_oneoff, which the host services with a Java
@@ -38,40 +38,40 @@ import (
 // Host imports. All return a WASI errno (0 on success). Addresses passed out
 // of the host use the 20-byte wireAddr layout.
 
-//go:wasmimport tcmc tcp_connect
+//go:wasmimport hearthgate tcp_connect
 func hostTCPConnect(network unsafe.Pointer, networkLen uint32, addr unsafe.Pointer, addrLen uint32, outFD unsafe.Pointer) uint32
 
-//go:wasmimport tcmc tcp_connect_status
+//go:wasmimport hearthgate tcp_connect_status
 func hostTCPConnectStatus(fd int32) uint32
 
-//go:wasmimport tcmc tcp_listen
+//go:wasmimport hearthgate tcp_listen
 func hostTCPListen(addr unsafe.Pointer, addrLen uint32, outFD unsafe.Pointer) uint32
 
-//go:wasmimport tcmc tcp_accept
+//go:wasmimport hearthgate tcp_accept
 func hostTCPAccept(fd int32, outFD unsafe.Pointer) uint32
 
-//go:wasmimport tcmc sock_recv
+//go:wasmimport hearthgate sock_recv
 func hostRecv(fd int32, buf unsafe.Pointer, bufLen uint32, outN unsafe.Pointer) uint32
 
-//go:wasmimport tcmc sock_send
+//go:wasmimport hearthgate sock_send
 func hostSend(fd int32, buf unsafe.Pointer, bufLen uint32, outN unsafe.Pointer) uint32
 
-//go:wasmimport tcmc sock_shutdown_write
+//go:wasmimport hearthgate sock_shutdown_write
 func hostShutdownWrite(fd int32) uint32
 
-//go:wasmimport tcmc udp_bind
+//go:wasmimport hearthgate udp_bind
 func hostUDPBind(network unsafe.Pointer, networkLen uint32, addr unsafe.Pointer, addrLen uint32, outFD unsafe.Pointer) uint32
 
-//go:wasmimport tcmc udp_recvfrom
+//go:wasmimport hearthgate udp_recvfrom
 func hostUDPRecvFrom(fd int32, buf unsafe.Pointer, bufLen uint32, outN unsafe.Pointer, outAddr unsafe.Pointer) uint32
 
-//go:wasmimport tcmc udp_sendto
+//go:wasmimport hearthgate udp_sendto
 func hostUDPSendTo(fd int32, buf unsafe.Pointer, bufLen uint32, addr unsafe.Pointer) uint32
 
-//go:wasmimport tcmc sock_addr
+//go:wasmimport hearthgate sock_addr
 func hostSockAddr(fd int32, remote uint32, outAddr unsafe.Pointer) uint32
 
-//go:wasmimport tcmc interfaces
+//go:wasmimport hearthgate interfaces
 func hostInterfaces(buf unsafe.Pointer, bufLen uint32, outN unsafe.Pointer) uint32
 
 // wireAddr is the host's socket address encoding: family (4 or 6), one

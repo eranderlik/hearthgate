@@ -1,4 +1,4 @@
-// Command tcmc-helper is the networking half of the Tailcat for Minecraft mod.
+// Command hearthgate-helper is the networking half of the Hearthgate mod.
 //
 // It is built for GOOS=wasip1 and runs inside the game's JVM on a WebAssembly
 // runtime, so the mod ships no native executables. The same source also builds
@@ -16,8 +16,8 @@ import (
 	"log"
 	"os"
 
-	"tailcatmc/helper/internal/app"
-	"tailcatmc/helper/internal/hostnet"
+	"hearthgate/helper/internal/app"
+	"hearthgate/helper/internal/hostnet"
 )
 
 func main() {

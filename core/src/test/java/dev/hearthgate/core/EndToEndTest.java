@@ -1,7 +1,7 @@
-package dev.tailcatmc.core;
+package dev.hearthgate.core;
 
-import dev.tailcatmc.core.host.NetworkPolicy;
-import dev.tailcatmc.core.nativehelper.NativeHelpers;
+import dev.hearthgate.core.host.NetworkPolicy;
+import dev.hearthgate.core.nativehelper.NativeHelpers;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
@@ -54,7 +54,7 @@ class EndToEndTest {
 	@Timeout(value = 10, unit = TimeUnit.MINUTES)
 	void wasmHostFourPlayers() throws Exception {
 		network();
-		Assumptions.assumeTrue(System.getProperty("tcmc.nativeLibrary") != null, "compared with -PtestNative only");
+		Assumptions.assumeTrue(System.getProperty("hearthgate.nativeLibrary") != null, "compared with -PtestNative only");
 		transfer(HelperBackend.WASM, HelperBackend.WASM, 4, false);
 	}
 
@@ -65,14 +65,14 @@ class EndToEndTest {
 	}
 
 	private static void network() {
-		Assumptions.assumeTrue(Boolean.getBoolean("tcmc.networkTests"), "network tests disabled");
+		Assumptions.assumeTrue(Boolean.getBoolean("hearthgate.networkTests"), "network tests disabled");
 	}
 
 	private static HelperBackend nativeBackend() throws Exception {
 		network();
-		String lib = System.getProperty("tcmc.nativeLibrary");
+		String lib = System.getProperty("hearthgate.nativeLibrary");
 		Assumptions.assumeTrue(lib != null, "native tests need -PtestNative");
-		return NativeHelpers.load(Path.of(lib), System.getProperty("tcmc.nativePlatform"));
+		return NativeHelpers.load(Path.of(lib), System.getProperty("hearthgate.nativePlatform"));
 	}
 
 	/**

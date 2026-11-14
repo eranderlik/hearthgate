@@ -1,6 +1,6 @@
 # Third-party notices
 
-The Tailcat for Minecraft jar bundles the following software. The networking
+The Hearthgate jar bundles the following software. The networking
 helper is compiled from Go (including the modules below and the Go standard
 library) to WebAssembly and then to JVM bytecode; the Chicory WebAssembly
 runtime is bundled as a library. The optional native helper add-ons for

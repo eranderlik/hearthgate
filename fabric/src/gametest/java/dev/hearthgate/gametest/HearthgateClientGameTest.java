@@ -1,12 +1,12 @@
-package dev.tailcatmc.gametest;
+package dev.hearthgate.gametest;
 
-import dev.tailcatmc.core.HelperEvent;
-import dev.tailcatmc.core.HelperSession;
-import dev.tailcatmc.core.host.NetworkPolicy;
-import dev.tailcatmc.fabric.JoinScreen;
-import dev.tailcatmc.fabric.Sessions;
-import dev.tailcatmc.fabric.ShareScreen;
-import dev.tailcatmc.fabric.TailcatClient;
+import dev.hearthgate.core.HelperEvent;
+import dev.hearthgate.core.HelperSession;
+import dev.hearthgate.core.host.NetworkPolicy;
+import dev.hearthgate.fabric.JoinScreen;
+import dev.hearthgate.fabric.Sessions;
+import dev.hearthgate.fabric.ShareScreen;
+import dev.hearthgate.fabric.HearthgateClient;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
  * integrated server through the tunnel. Needs internet access to Tailcat's
  * public relays. Run with {@code ./gradlew :fabric:runClientGameTest}.
  */
-public final class TailcatClientGameTest implements FabricClientGameTest {
+public final class HearthgateClientGameTest implements FabricClientGameTest {
 	private static final int TICKS_PER_SECOND = 20;
 
 	@Override
@@ -45,16 +45,16 @@ public final class TailcatClientGameTest implements FabricClientGameTest {
 
 			ctx.setScreen(() -> new PauseScreen(true));
 			ctx.waitForScreen(PauseScreen.class);
-			ctx.takeScreenshot("tailcat-1-pause-menu");
-			ctx.clickScreenButton("tailcatmc.button.share");
+			ctx.takeScreenshot("hearthgate-1-pause-menu");
+			ctx.clickScreenButton("hearthgate.button.share");
 			ctx.waitForScreen(ShareScreen.class);
 
 			ctx.waitFor(mc -> {
-				Sessions.Status s = TailcatClient.sessions().status();
+				Sessions.Status s = HearthgateClient.sessions().status();
 				return s != null && s.ready();
 			}, 60 * TICKS_PER_SECOND);
-			String invite = ctx.computeOnClient(mc -> TailcatClient.sessions().status().invite());
-			ctx.takeScreenshot("tailcat-2-sharing");
+			String invite = ctx.computeOnClient(mc -> HearthgateClient.sessions().status().invite());
+			ctx.takeScreenshot("hearthgate-2-sharing");
 
 			String status = pingThroughTunnel(invite);
 			String version = SharedConstants.getCurrentVersion().name();
@@ -63,20 +63,20 @@ public final class TailcatClientGameTest implements FabricClientGameTest {
 			}
 			log("server list ping through the tunnel OK: " + status);
 
-			ctx.waitFor(mc -> !TailcatClient.sessions().status().peers().isEmpty(), 30 * TICKS_PER_SECOND);
+			ctx.waitFor(mc -> !HearthgateClient.sessions().status().peers().isEmpty(), 30 * TICKS_PER_SECOND);
 			ctx.waitTicks(TICKS_PER_SECOND);
-			ctx.takeScreenshot("tailcat-3-peer-connected");
+			ctx.takeScreenshot("hearthgate-3-peer-connected");
 
-			ctx.clickScreenButton("tailcatmc.share.stop");
-			ctx.waitFor(mc -> TailcatClient.sessions().status() == null, 10 * TICKS_PER_SECOND);
+			ctx.clickScreenButton("hearthgate.share.stop");
+			ctx.waitFor(mc -> HearthgateClient.sessions().status() == null, 10 * TICKS_PER_SECOND);
 		}
 
 		ctx.setScreen(() -> new JoinMultiplayerScreen(new TitleScreen()));
 		ctx.waitForScreen(JoinMultiplayerScreen.class);
-		ctx.takeScreenshot("tailcat-4-multiplayer");
-		ctx.clickScreenButton("tailcatmc.button.join");
+		ctx.takeScreenshot("hearthgate-4-multiplayer");
+		ctx.clickScreenButton("hearthgate.button.join");
 		ctx.waitForScreen(JoinScreen.class);
-		ctx.takeScreenshot("tailcat-5-join-screen");
+		ctx.takeScreenshot("hearthgate-5-join-screen");
 		ctx.setScreen(TitleScreen::new);
 	}
 
@@ -169,6 +169,6 @@ public final class TailcatClientGameTest implements FabricClientGameTest {
 	}
 
 	private static void log(String s) {
-		System.out.println("[tailcat-gametest] " + s);
+		System.out.println("[hearthgate-gametest] " + s);
 	}
 }

@@ -1,4 +1,4 @@
-package dev.tailcatmc.core.nativehelper;
+package dev.hearthgate.core.nativehelper;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -41,14 +41,14 @@ public final class NativePlatform {
 	/** The library's file name on {@code platform}. */
 	public static String libraryName(String platform) {
 		if (platform.startsWith("windows-")) {
-			return "tcmc.dll";
+			return "hearthgate.dll";
 		}
-		return platform.startsWith("macos-") ? "libtcmc.dylib" : "libtcmc.so";
+		return platform.startsWith("macos-") ? "libhearthgate.dylib" : "libhearthgate.so";
 	}
 
 	/** The Fabric mod id of the add-on carrying {@code platform}'s library. */
 	public static String addonModId(String platform) {
-		return "tailcatmc_native_" + platform.replace('-', '_');
+		return "hearthgate_native_" + platform.replace('-', '_');
 	}
 
 	private static boolean isMusl() {

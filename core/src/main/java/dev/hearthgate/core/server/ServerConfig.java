@@ -1,4 +1,4 @@
-package dev.tailcatmc.core.server;
+package dev.hearthgate.core.server;
 
 import com.google.gson.FieldNamingPolicy;
 import com.google.gson.Gson;
@@ -11,7 +11,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 
 /**
- * Dedicated server settings, stored as {@code config/tailcatmc-server.json}.
+ * Dedicated server settings, stored as {@code config/hearthgate-server.json}.
  * Missing fields take the defaults below; a missing file is created with them.
  */
 public final class ServerConfig {
@@ -41,7 +41,7 @@ public final class ServerConfig {
 	public static final class Discord {
 		/**
 		 * Webhook to post invitations to (Channel settings → Integrations →
-		 * Webhooks). Overridden by the TCMC_DISCORD_WEBHOOK environment
+		 * Webhooks). Overridden by the HEARTHGATE_DISCORD_WEBHOOK environment
 		 * variable. Anyone who can read the channel can join the server.
 		 */
 		public String webhookUrl = "";
@@ -81,7 +81,7 @@ public final class ServerConfig {
 	}
 
 	public String webhookUrl() {
-		String env = System.getenv("TCMC_DISCORD_WEBHOOK");
+		String env = System.getenv("HEARTHGATE_DISCORD_WEBHOOK");
 		return env != null && !env.isBlank() ? env.trim() : discord.webhookUrl.trim();
 	}
 

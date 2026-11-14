@@ -32,7 +32,7 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: tailcat-mc
+          name: hearthgate
           path: fabric/build/libs/*.jar
 
   # The optional native helper add-on for dedicated servers, built on a runner
@@ -76,8 +76,8 @@ jobs:
         run: ./gradlew :fabric:nativeAddonJar -PnativePlatform=${{ matrix.platform }}
       - uses: actions/upload-artifact@v5
         with:
-          name: tailcat-mc-native-${{ matrix.platform }}
-          path: fabric/build/libs/tailcat-mc-native-*.jar
+          name: hearthgate-native-${{ matrix.platform }}
+          path: fabric/build/libs/hearthgate-native-*.jar
 
   gametest:
     needs: build

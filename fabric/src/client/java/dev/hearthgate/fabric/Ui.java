@@ -1,4 +1,4 @@
-package dev.tailcatmc.fabric;
+package dev.hearthgate.fabric;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.MultiLineTextWidget;

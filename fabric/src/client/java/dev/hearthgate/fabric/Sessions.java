@@ -1,8 +1,8 @@
-package dev.tailcatmc.fabric;
+package dev.hearthgate.fabric;
 
-import dev.tailcatmc.core.HelperEvent;
-import dev.tailcatmc.core.HelperSession;
-import dev.tailcatmc.core.host.NetworkPolicy;
+import dev.hearthgate.core.HelperEvent;
+import dev.hearthgate.core.HelperSession;
+import dev.hearthgate.core.host.NetworkPolicy;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
  * helper events are hopped onto it.
  */
 public final class Sessions {
-	static final Logger LOG = LoggerFactory.getLogger("tailcat-mc");
+	static final Logger LOG = LoggerFactory.getLogger("hearthgate");
 	private static final long STARTUP_TIMEOUT_S = 45;
 	/** How long a join tunnel survives without Minecraft connecting through it. */
 	private static final long JOIN_GRACE_NANOS = TimeUnit.SECONDS.toNanos(60);
@@ -63,7 +63,7 @@ public final class Sessions {
 			try {
 				event = HelperEvent.parse(line);
 			} catch (IOException e) {
-				LOG.error("Bad event from Tailcat helper: {}", e.getMessage());
+				LOG.error("Bad event from Hearthgate helper: {}", e.getMessage());
 				return;
 			}
 			mc.execute(() -> handle(this, event));
@@ -77,13 +77,13 @@ public final class Sessions {
 		@Override
 		public void onExit(int code, Throwable error) {
 			if (error != null) {
-				LOG.error("Tailcat helper crashed", error);
+				LOG.error("Hearthgate helper crashed", error);
 			}
 			mc.execute(() -> {
 				ready.completeExceptionally(new IllegalStateException(
-						error != null ? "The Tailcat helper crashed: " + error : "The Tailcat helper stopped"));
+						error != null ? "The Hearthgate helper crashed: " + error : "The Hearthgate helper stopped"));
 				if (session == this) {
-					endSession(this, error != null ? "The Tailcat helper crashed; see the log for details." : null);
+					endSession(this, error != null ? "The Hearthgate helper crashed; see the log for details." : null);
 				}
 			});
 		}
@@ -124,7 +124,7 @@ public final class Sessions {
 		Session s = new Session(Mode.HOST);
 		maybeDevelopmentOfflineAuth(s, server);
 		List<String> args = new ArrayList<>(List.of("host", "--target", "127.0.0.1:" + port, "--mc", gameVersion()));
-		if (TailcatClient.verbose()) {
+		if (HearthgateClient.verbose()) {
 			args.add("--verbose");
 		}
 		return begin(s, args, NetworkPolicy.forHost(port)).thenApply(HelperEvent::invite);
@@ -134,13 +134,13 @@ public final class Sessions {
 	public CompletableFuture<Void> join(Screen parent, String invite) {
 		stop();
 		List<String> args = new ArrayList<>(List.of("join", "--invite", invite.trim()));
-		if (TailcatClient.verbose()) {
+		if (HearthgateClient.verbose()) {
 			args.add("--verbose");
 		}
 		Session s = new Session(Mode.JOIN);
 		return begin(s, args, NetworkPolicy.forJoin()).thenAccept(event -> {
 			String address = event.address();
-			ServerData data = new ServerData(Component.translatable("tailcatmc.server_name").getString(), address,
+			ServerData data = new ServerData(Component.translatable("hearthgate.server_name").getString(), address,
 					ServerData.Type.OTHER);
 			ConnectScreen.startConnecting(parent, mc, ServerAddress.parseString(address), data, false, null);
 		});
@@ -175,8 +175,8 @@ public final class Sessions {
 			case "peers" -> {
 				if (s.mode == Mode.HOST && e.peers().size() > s.peers.size()) {
 					HelperEvent.Peer p = e.peers().getLast();
-					toast(Component.translatable("tailcatmc.toast.player_connected"),
-							Component.translatable(p.direct() ? "tailcatmc.path.direct" : "tailcatmc.path.relayed",
+					toast(Component.translatable("hearthgate.toast.player_connected"),
+							Component.translatable(p.direct() ? "hearthgate.path.direct" : "hearthgate.path.relayed",
 									p.relay() == null ? "?" : p.relay()));
 				}
 				s.peers = e.peers();
@@ -239,7 +239,7 @@ public final class Sessions {
 		}
 		restoreAuth(s);
 		if (toastMessage != null) {
-			toast(Component.translatable("tailcatmc.toast.stopped"), Component.literal(toastMessage));
+			toast(Component.translatable("hearthgate.toast.stopped"), Component.literal(toastMessage));
 		}
 	}
 
@@ -253,11 +253,11 @@ public final class Sessions {
 	 */
 	private static void maybeDevelopmentOfflineAuth(Session s, IntegratedServer server) {
 		if (FabricLoader.getInstance().isDevelopmentEnvironment()
-				&& "1".equals(System.getenv("TCMC_DEV_OFFLINE_AUTH"))) {
+				&& "1".equals(System.getenv("HEARTHGATE_DEV_OFFLINE_AUTH"))) {
 			s.offlineAuthServer = server;
 			s.previousAuth = server.usesAuthentication();
 			server.setUsesAuthentication(false);
-			LOG.warn("TCMC_DEV_OFFLINE_AUTH: authentication disabled while sharing (development only)");
+			LOG.warn("HEARTHGATE_DEV_OFFLINE_AUTH: authentication disabled while sharing (development only)");
 		}
 	}
 

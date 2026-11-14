@@ -1,4 +1,4 @@
-module tailcatmc/helper
+module hearthgate/helper
 
 go 1.27.2
 

@@ -1,4 +1,4 @@
-package dev.tailcatmc.core.server;
+package dev.hearthgate.core.server;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;

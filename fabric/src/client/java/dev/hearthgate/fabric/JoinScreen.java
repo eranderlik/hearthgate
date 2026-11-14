@@ -1,4 +1,4 @@
-package dev.tailcatmc.fabric;
+package dev.hearthgate.fabric;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Button;
@@ -20,7 +20,7 @@ public final class JoinScreen extends Screen {
 	private boolean connecting;
 
 	public JoinScreen(Screen parent) {
-		super(Component.translatable("tailcatmc.join.title"));
+		super(Component.translatable("hearthgate.join.title"));
 		this.parent = parent;
 	}
 
@@ -29,18 +29,18 @@ public final class JoinScreen extends Screen {
 		int cx = width / 2;
 		int top = height / 2 - 60;
 		addRenderableWidget(Ui.centered(title, font, width, top));
-		addRenderableWidget(Ui.centered(Component.translatable("tailcatmc.join.help").withStyle(ChatFormatting.GRAY),
+		addRenderableWidget(Ui.centered(Component.translatable("hearthgate.join.help").withStyle(ChatFormatting.GRAY),
 				font, width, top + 16));
 
-		input = new EditBox(font, cx - 150, top + 38, 300, 20, Component.translatable("tailcatmc.join.invite"));
+		input = new EditBox(font, cx - 150, top + 38, 300, 20, Component.translatable("hearthgate.join.invite"));
 		input.setMaxLength(4096);
-		input.setHint(Component.translatable("tailcatmc.join.hint").withStyle(ChatFormatting.DARK_GRAY));
+		input.setHint(Component.translatable("hearthgate.join.hint").withStyle(ChatFormatting.DARK_GRAY));
 		input.setValue(text);
 		input.setEditable(!connecting);
 		input.setResponder(this::onInput);
 		addRenderableWidget(input);
 
-		connect = addRenderableWidget(Button.builder(Component.translatable("tailcatmc.join.connect"), b -> begin())
+		connect = addRenderableWidget(Button.builder(Component.translatable("hearthgate.join.connect"), b -> begin())
 				.bounds(cx - 155, top + 66, 150, 20).build());
 		addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
 				.bounds(cx + 5, top + 66, 150, 20).build());
@@ -59,12 +59,12 @@ public final class JoinScreen extends Screen {
 		if (value.isBlank()) {
 			setStatus(Component.empty());
 		} else if (info.isEmpty()) {
-			setStatus(Component.translatable("tailcatmc.join.not_an_invite").withStyle(ChatFormatting.RED));
+			setStatus(Component.translatable("hearthgate.join.not_an_invite").withStyle(ChatFormatting.RED));
 		} else {
 			String theirs = info.get().minecraftVersion();
 			String ours = Sessions.gameVersion();
 			if (theirs != null && !theirs.equals(ours)) {
-				setStatus(Component.translatable("tailcatmc.join.version_mismatch", theirs, ours)
+				setStatus(Component.translatable("hearthgate.join.version_mismatch", theirs, ours)
 						.withStyle(ChatFormatting.YELLOW));
 			} else {
 				setStatus(Component.empty());
@@ -83,14 +83,14 @@ public final class JoinScreen extends Screen {
 		connecting = true;
 		connect.active = false;
 		input.setEditable(false);
-		setStatus(Component.translatable("tailcatmc.starting"));
-		TailcatClient.sessions().join(parent, text).whenComplete((ignored, err) -> {
+		setStatus(Component.translatable("hearthgate.starting"));
+		HearthgateClient.sessions().join(parent, text).whenComplete((ignored, err) -> {
 			if (err != null) {
 				minecraft.execute(() -> {
 					connecting = false;
 					input.setEditable(true);
 					onInput(text);
-					setStatus(Component.translatable("tailcatmc.join.failed", ErrorMessages.rootMessage(err))
+					setStatus(Component.translatable("hearthgate.join.failed", ErrorMessages.rootMessage(err))
 							.withStyle(ChatFormatting.RED));
 				});
 			}
@@ -100,7 +100,7 @@ public final class JoinScreen extends Screen {
 	@Override
 	public void onClose() {
 		if (connecting) {
-			TailcatClient.sessions().stop();
+			HearthgateClient.sessions().stop();
 		}
 		Compat.setScreen(minecraft, parent);
 	}

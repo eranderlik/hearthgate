@@ -1,6 +1,6 @@
-package dev.tailcatmc.core;
+package dev.hearthgate.core;
 
-import dev.tailcatmc.core.host.NetworkPolicy;
+import dev.hearthgate.core.host.NetworkPolicy;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -28,7 +28,7 @@ class HelperSmokeTest {
 	@Test
 	void rejectsMalformedInvite() throws Exception {
 		Recorder r = new Recorder("badinvite");
-		HelperSession.start(List.of("join", "--invite", "tcmc1_notbase64!"), NetworkPolicy.forJoin(), r);
+		HelperSession.start(List.of("join", "--invite", "hg1_notbase64!"), NetworkPolicy.forJoin(), r);
 		HelperEvent e = r.next(120);
 		assertEquals("error", e.type());
 		assertEquals("invalid_invite", e.code());

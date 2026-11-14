@@ -1,8 +1,8 @@
-package dev.tailcatmc.fabric.server;
+package dev.hearthgate.fabric.server;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
-import dev.tailcatmc.core.server.PersistentHost;
+import dev.hearthgate.core.server.PersistentHost;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -15,28 +15,28 @@ import java.time.Duration;
 import java.time.Instant;
 
 /**
- * {@code /tailcat status|invite|rotate|announce}, for server operators
+ * {@code /hearthgate status|invite|rotate|announce}, for server operators
  * (permission level 3) and the console. Messages are literal text because
  * clients without the mod have no translations for them.
  */
-final class TailcatCommand {
-	private TailcatCommand() {}
+final class HearthgateCommand {
+	private HearthgateCommand() {}
 
 	static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-		dispatcher.register(Commands.literal("tailcat")
+		dispatcher.register(Commands.literal("hearthgate")
 				.requires(Commands.hasPermission(Commands.LEVEL_ADMINS))
-				.executes(TailcatCommand::status)
-				.then(Commands.literal("status").executes(TailcatCommand::status))
-				.then(Commands.literal("invite").executes(TailcatCommand::invite))
-				.then(Commands.literal("rotate").executes(TailcatCommand::rotate))
-				.then(Commands.literal("announce").executes(TailcatCommand::announce)));
+				.executes(HearthgateCommand::status)
+				.then(Commands.literal("status").executes(HearthgateCommand::status))
+				.then(Commands.literal("invite").executes(HearthgateCommand::invite))
+				.then(Commands.literal("rotate").executes(HearthgateCommand::rotate))
+				.then(Commands.literal("announce").executes(HearthgateCommand::announce)));
 	}
 
 	private static PersistentHost host(CommandContext<CommandSourceStack> ctx) {
-		PersistentHost h = TailcatServer.host();
+		PersistentHost h = HearthgateServer.host();
 		if (h == null) {
 			ctx.getSource().sendFailure(Component.literal(
-					"Tailcat isn't running on this server (see tailcatmc-server.json and the log)."));
+					"Hearthgate isn't running on this server (see hearthgate-server.json and the log)."));
 		}
 		return h;
 	}
@@ -47,9 +47,9 @@ final class TailcatCommand {
 			return 0;
 		}
 		PersistentHost.Status s = h.status();
-		MutableComponent msg = Component.literal("Tailcat: ").withStyle(ChatFormatting.GOLD)
+		MutableComponent msg = Component.literal("Hearthgate: ").withStyle(ChatFormatting.GOLD)
 				.append(Component.literal(s.state()).withStyle(s.invite() != null ? ChatFormatting.GREEN : ChatFormatting.YELLOW));
-		msg.append(Component.literal(String.format("%nPlayers via Tailcat: %d (%d direct, %d relayed)",
+		msg.append(Component.literal(String.format("%nPlayers via Hearthgate: %d (%d direct, %d relayed)",
 				s.players(), s.directPlayers(), s.players() - s.directPlayers())).withStyle(ChatFormatting.GRAY));
 		if (s.drainingTunnels() > 0) {
 			msg.append(Component.literal("\nPrevious invitation still serving connected players")
@@ -74,14 +74,14 @@ final class TailcatCommand {
 		}
 		String invite = h.status().invite();
 		if (invite == null) {
-			ctx.getSource().sendFailure(Component.literal("No invitation yet; Tailcat is " + h.status().state() + "."));
+			ctx.getSource().sendFailure(Component.literal("No invitation yet; Hearthgate is " + h.status().state() + "."));
 			return 0;
 		}
 		Component text = Component.literal(invite).withStyle(style -> style
 				.withColor(ChatFormatting.AQUA)
 				.withClickEvent(new ClickEvent.CopyToClipboard(invite))
 				.withHoverEvent(new HoverEvent.ShowText(Component.literal("Click to copy"))));
-		ctx.getSource().sendSuccess(() -> Component.literal("Tailcat invitation (secret; click to copy):\n")
+		ctx.getSource().sendSuccess(() -> Component.literal("Hearthgate invitation (secret; click to copy):\n")
 				.withStyle(ChatFormatting.GOLD).append(text), false);
 		return 1;
 	}
@@ -93,7 +93,7 @@ final class TailcatCommand {
 		}
 		h.rotateNow();
 		ctx.getSource().sendSuccess(() -> Component.literal(
-				"Rotating Tailcat keys. Players already connected stay connected; "
+				"Rotating Hearthgate keys. Players already connected stay connected; "
 						+ "the new invitation takes effect in a few seconds"
 						+ (h.discordEnabled() ? " and will be posted to Discord." : ".")), true);
 		return 1;
@@ -105,7 +105,7 @@ final class TailcatCommand {
 			return 0;
 		}
 		if (!h.discordEnabled()) {
-			ctx.getSource().sendFailure(Component.literal("No Discord webhook configured in tailcatmc-server.json."));
+			ctx.getSource().sendFailure(Component.literal("No Discord webhook configured in hearthgate-server.json."));
 			return 0;
 		}
 		h.republish();

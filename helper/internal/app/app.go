@@ -1,14 +1,14 @@
 // Package app implements the helper's commands and its JSON event protocol.
 //
-// It is shared by cmd/tcmc-helper (the WebAssembly build the mod runs on
+// It is shared by cmd/hearthgate-helper (the WebAssembly build the mod runs on
 // every platform, also buildable as a native executable for testing) and
-// cmd/libtcmc (the optional native library dedicated servers can load for
+// cmd/libhearthgate (the optional native library dedicated servers can load for
 // more throughput).
 //
 // Commands:
 //
 //	host --target IP:PORT [--mc VERSION] [--key K --psk P [--region N]] [--verbose]
-//	join --invite tcmc1_... [--verbose]
+//	join --invite hg1_... [--verbose]
 //	keygen
 //
 // Without --key, a host gets a fresh identity and so a new invitation every
@@ -34,8 +34,8 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/wgengine/filter"
 
-	"tailcatmc/helper/internal/hostnet"
-	"tailcatmc/helper/internal/invite"
+	"hearthgate/helper/internal/hostnet"
+	"hearthgate/helper/internal/invite"
 )
 
 const (

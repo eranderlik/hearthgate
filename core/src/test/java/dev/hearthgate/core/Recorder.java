@@ -1,4 +1,4 @@
-package dev.tailcatmc.core;
+package dev.hearthgate.core;
 
 import java.io.IOException;
 import java.util.List;
@@ -21,7 +21,7 @@ public final class Recorder implements HelperSession.Listener {
 
 	@Override
 	public void onEvent(String line) {
-		System.out.println("[" + name + " event] " + line.replaceAll("tcmc1_[A-Za-z0-9_-]+", "tcmc1_<redacted>")
+		System.out.println("[" + name + " event] " + line.replaceAll("hg1_[A-Za-z0-9_-]+", "hg1_<redacted>")
 				.replaceAll("\"(private_key|preshared_key)\":\"[^\"]*\"", "\"$1\":\"<redacted>\""));
 		try {
 			events.add(HelperEvent.parse(line));

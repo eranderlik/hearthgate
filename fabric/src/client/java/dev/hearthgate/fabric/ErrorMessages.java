@@ -1,4 +1,4 @@
-package dev.tailcatmc.fabric;
+package dev.hearthgate.fabric;
 
 import net.minecraft.network.chat.Component;
 
@@ -8,15 +8,15 @@ final class ErrorMessages {
 
 	static String describe(String code, String detail) {
 		String key = switch (code == null ? "" : code) {
-			case "relay_unreachable" -> "tailcatmc.error.relay_unreachable";
-			case "host_unreachable" -> "tailcatmc.error.host_unreachable";
-			case "invalid_invite" -> "tailcatmc.error.invalid_invite";
+			case "relay_unreachable" -> "hearthgate.error.relay_unreachable";
+			case "host_unreachable" -> "hearthgate.error.host_unreachable";
+			case "invalid_invite" -> "hearthgate.error.invalid_invite";
 			default -> null;
 		};
 		if (key == null) {
-			return detail == null ? Component.translatable("tailcatmc.error.unknown").getString() : detail;
+			return detail == null ? Component.translatable("hearthgate.error.unknown").getString() : detail;
 		}
-		Sessions.LOG.warn("Tailcat {}: {}", code, detail);
+		Sessions.LOG.warn("Hearthgate {}: {}", code, detail);
 		return Component.translatable(key).getString();
 	}
 
@@ -25,7 +25,7 @@ final class ErrorMessages {
 			error = error.getCause();
 		}
 		if (error instanceof java.util.concurrent.TimeoutException) {
-			return Component.translatable("tailcatmc.error.timeout").getString();
+			return Component.translatable("hearthgate.error.timeout").getString();
 		}
 		return error.getMessage() == null ? error.toString() : error.getMessage();
 	}

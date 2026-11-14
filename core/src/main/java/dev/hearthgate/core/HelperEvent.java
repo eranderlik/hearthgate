@@ -1,4 +1,4 @@
-package dev.tailcatmc.core;
+package dev.hearthgate.core;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * One event from the helper's stdout protocol (see cmd/tcmc-helper/main.go).
+ * One event from the helper's stdout protocol (see cmd/hearthgate-helper/main.go).
  * Parsing is strict: the helper and this class ship together, so anything
  * unexpected indicates a bug and is rejected.
  */
