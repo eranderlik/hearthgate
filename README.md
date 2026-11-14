@@ -1,5 +1,7 @@
 # Hearthgate
 
+![Hearthgate: a lit pixel-art fireplace](docs/banner.png)
+
 Play your singleplayer world with friends on other networks, or keep a
 dedicated server reachable without port forwarding. No accounts, no VPN app,
 nothing to install but the mod.
@@ -350,6 +352,11 @@ trademark of Tailscale Inc., and "Tailcat" is the name of Tailscale's
 open-source library this mod uses. Those names appear here only to describe
 that library and to credit the demo this project started from. Please don't
 report Hearthgate issues to Tailscale.
+
+The icon and banner are adapted from [LPC Fireplace](https://opengameart.org/content/lpc-fireplace)
+by Lanea Zimmerman (Sharm), licensed
+[CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/); see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#artwork).
 
 Minecraft is a trademark of Mojang Synergies AB. Hearthgate is not an official
 Minecraft product and is not approved by or associated with Mojang or

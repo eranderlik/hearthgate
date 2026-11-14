@@ -26,7 +26,7 @@ for line in (vendor / "modules.txt").read_text().splitlines():
     if m: mods.append((m.group(1), m.group(2)))
 
 out = ["# Third-party notices", "",
-       "The Hearthgate jar bundles the following software. The networking",
+       "The Hearthgate jar bundles the following software and artwork. The networking",
        "helper is compiled from Go (including the modules below and the Go standard",
        "library) to WebAssembly and then to JVM bytecode; the Chicory WebAssembly",
        "runtime is bundled as a library. The optional native helper add-ons for",
@@ -52,7 +52,8 @@ for path, ver in mods:
         add(path, ver, lic)
 out.append("| Chicory (com.dylibso.chicory: runtime, wasm, build-time compiler output) | 1.7.5 | Apache-2.0 |")
 out.append("| tailcat-for-minecraft demo (portions of the invitation format and UI flow) | 2026-08 | BSD-3-Clause |")
-out += ["", "## License texts", ""]
+out += [""] + ['## Artwork', '', 'The mod icon (`assets/hearthgate/icon.png`) and the README banner', '(`docs/banner.png`) are adapted from "LPC Fireplace" by Lanea Zimmerman', '(Sharm), https://opengameart.org/content/lpc-fireplace, licensed under', 'CC-BY 3.0 (https://creativecommons.org/licenses/by/3.0/) and CC-BY 4.0', '(https://creativecommons.org/licenses/by/4.0/). Changes: the fireplace and', 'one fire frame were combined and scaled up; the banner adds a background.', 'These two images are available under CC-BY 4.0.', '']
+out += ["## License texts", ""]
 for name, text in texts:
     out += [f"### {name}", "", "```", text.strip(), "```", ""]
 (root / "THIRD_PARTY_NOTICES.md").write_text("\n".join(out) + "\n")

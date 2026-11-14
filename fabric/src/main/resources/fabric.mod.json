@@ -6,10 +6,11 @@
 	"description": "Play with friends on other networks with no port forwarding, accounts, or extra software: share a singleplayer world, or keep a dedicated server reachable (with Discord announcements). Peer-to-peer WireGuard tunnels built on Tailscale's open-source Tailcat library, running entirely inside the game. An independent project, not affiliated with or endorsed by Tailscale Inc.",
 	"authors": ["Hearthgate contributors"],
 	"contact": {
-		"sources": "https://github.com/eranderlik/tailcat-mc",
-		"issues": "https://github.com/eranderlik/tailcat-mc/issues"
+		"sources": "https://github.com/eranderlik/hearthgate",
+		"issues": "https://github.com/eranderlik/hearthgate/issues"
 	},
 	"license": "BSD-3-Clause",
+	"icon": "assets/hearthgate/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"client": ["dev.hearthgate.fabric.HearthgateClient"],

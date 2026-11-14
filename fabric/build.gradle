@@ -108,7 +108,7 @@ def addonModJson = tasks.register('nativeAddonModJson') {
 					"as native code instead of WebAssembly, for much higher throughput with many players. " +
 					"Requires Hearthgate ${props.version}.",
 			authors: ['Hearthgate contributors'],
-			contact: [sources: 'https://github.com/eranderlik/tailcat-mc'],
+			contact: [sources: 'https://github.com/eranderlik/hearthgate'],
 			license: 'BSD-3-Clause',
 			environment: '*',
 			depends: [hearthgate: "=${props.version}"],
