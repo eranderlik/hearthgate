@@ -154,7 +154,7 @@ public final class DiscordWebhook implements AutoCloseable {
 			HttpRequest req = HttpRequest.newBuilder(uri)
 					.timeout(Duration.ofSeconds(20))
 					.header("Content-Type", "application/json")
-					.header("User-Agent", "Hearthgate (https://github.com/eranderlik/tailcat-mc, 1)")
+					.header("User-Agent", "Hearthgate (https://github.com/eranderlik/hearthgate, 1)")
 					.method(method, HttpRequest.BodyPublishers.ofString(body))
 					.build();
 			try {
