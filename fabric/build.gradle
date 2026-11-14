@@ -1,0 +1,154 @@
+// The Fabric mod. Compiled against the oldest supported Minecraft version by
+// default; pass -Pmc=<version> to compile or run against another one, e.g.
+//   ./gradlew :fabric:runClient -Pmc=26.3
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+evaluationDependsOn(':core')
+
+def mc = providers.gradleProperty('mc').getOrElse(minecraft_version)
+def fabricApiVersion = providers.gradleProperty("fabric_api_${mc}").getOrNull()
+if (fabricApiVersion == null) {
+	throw new GradleException("Unsupported Minecraft version ${mc}; add fabric_api_${mc} to gradle.properties")
+}
+
+version = "${mod_version}"
+group = maven_group
+base {
+	archivesName = 'tailcat-mc-fabric'
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+loom {
+	// Client code (screens, the integrated-server share flow) lives in
+	// src/client; src/main holds what also runs on dedicated servers. Loom
+	// fails the build if main code references client-only classes.
+	splitEnvironmentSourceSets()
+	mods {
+		tailcatmc {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = 'tailcatmc-gametest'
+		enableGameTests = false
+		enableClientGameTests = true
+		eula = true
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${mc}"
+	implementation "net.fabricmc:fabric-loader:${loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${fabricApiVersion}"
+
+	implementation project(':core')
+	// Nested in the mod jar (Fabric jar-in-jar).
+	include project(':core')
+	include "com.dylibso.chicory:runtime:${chicory_version}"
+	include "com.dylibso.chicory:wasm:${chicory_version}"
+}
+
+processResources {
+	def props = [version: project.version]
+	inputs.properties(props)
+	filesMatching('fabric.mod.json') {
+		expand props
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 25
+	options.encoding = 'UTF-8'
+}
+
+jar {
+	from(rootProject.file('LICENSE')) {
+		rename { "LICENSE_tailcat-mc" }
+	}
+	from(rootProject.file('THIRD_PARTY_NOTICES.md'))
+}
+
+// The native helper add-on for dedicated servers: a code-free Fabric mod
+// holding the helper built as a shared library for one platform, e.g.
+//   ./gradlew :fabric:nativeAddonJar                       (this machine's platform)
+//   ./gradlew :fabric:nativeAddonJar -PnativePlatform=linux-aarch64 -PnativeCc=...
+// CI builds one per platform on a runner of that platform.
+def core = project(':core')
+def nativePlatform = core.ext.nativePlatform
+def addonModId = 'tailcatmc_native_' + nativePlatform.replace('-', '_')
+def addonMeta = layout.buildDirectory.dir("generated/native-addon/${nativePlatform}")
+
+def addonModJson = tasks.register('nativeAddonModJson') {
+	def props = [id: addonModId, platform: nativePlatform, version: project.version.toString()]
+	inputs.properties(props)
+	outputs.dir(addonMeta)
+	doLast {
+		def json = [
+			schemaVersion: 1,
+			id: props.id,
+			version: props.version,
+			name: "Tailcat for Minecraft: native helper (${props.platform})",
+			description: "Optional add-on for dedicated servers on ${props.platform}: runs Tailcat's networking " +
+					"as native code instead of WebAssembly, for much higher throughput with many players. " +
+					"Requires Tailcat for Minecraft ${props.version}.",
+			authors: ['Tailcat for Minecraft contributors'],
+			contact: [sources: 'https://github.com/tailscale/tailcat'],
+			license: 'BSD-3-Clause',
+			environment: '*',
+			depends: [tailcatmc: "=${props.version}"],
+		]
+		def f = addonMeta.get().file('fabric.mod.json').asFile
+		f.parentFile.mkdirs()
+		f.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json)) + '\n'
+	}
+}
+
+def nativeAddonJar = tasks.register('nativeAddonJar', Jar) {
+	description = "Packages the native helper add-on for ${nativePlatform}."
+	group = 'build'
+	archiveBaseName = "tailcat-mc-native-${nativePlatform}"
+	destinationDirectory = layout.buildDirectory.dir('libs')
+	from(addonModJson)
+	from(core.tasks.named('buildHelperNative')) {
+		into "natives/tailcatmc/${nativePlatform}"
+	}
+	from(rootProject.file('LICENSE')) { rename { 'LICENSE_tailcat-mc' } }
+	from(rootProject.file('THIRD_PARTY_NOTICES.md'))
+}
+
+// Client gametests run with the add-on only when asked (-PgametestNative),
+// so a jar left over from an earlier run can't change what is tested.
+tasks.matching { it.name == 'runClientGameTest' }.configureEach { t ->
+	def useNative = providers.gradleProperty('gametestNative').isPresent()
+	if (useNative) {
+		t.dependsOn nativeAddonJar
+		t.jvmArgs '--enable-native-access=ALL-UNNAMED'
+		t.systemProperty 'tailcatmc.test.expectNative', 'true'
+	}
+	def addon = nativeAddonJar.flatMap { it.archiveFile }
+	def runDir = file(loom.runs.getByName('clientGameTest').runDir)
+	t.doFirst {
+		def mods = new File(runDir, 'mods')
+		mods.mkdirs()
+		mods.listFiles().findAll { it.name.startsWith('tailcat-mc-native-') }.each { it.delete() }
+		if (useNative) {
+			java.nio.file.Files.copy(addon.get().asFile.toPath(), new File(mods, addon.get().asFile.name).toPath())
+		}
+	}
+}

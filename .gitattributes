@@ -1,0 +1,6 @@
+# Patches must apply byte-for-byte to the LF sources Go vendors, including on
+# Windows checkouts with core.autocrlf.
+helper/patches/*.patch -text
+*.go text eol=lf
+gradlew text eol=lf
+*.bat text eol=crlf

@@ -1,0 +1,111 @@
+diff --git a/github.com/tailscale/wireguard-go/device/aead_other.go b/github.com/tailscale/wireguard-go/device/aead_other.go
+index 563c0e4..6ce8cfa 100644
+--- a/github.com/tailscale/wireguard-go/device/aead_other.go
++++ b/github.com/tailscale/wireguard-go/device/aead_other.go
+@@ -1,4 +1,4 @@
+-//go:build !arm && !(amd64 && gc && !purego)
++//go:build !arm && !(amd64 && gc && !purego) && !wasip1
+ 
+ /* SPDX-License-Identifier: MIT
+  *
+diff --git b/github.com/tailscale/wireguard-go/device/aead_wasip1.go b/github.com/tailscale/wireguard-go/device/aead_wasip1.go
+new file mode 100644
+index 0000000..6fcaf17
+--- /dev/null
++++ b/github.com/tailscale/wireguard-go/device/aead_wasip1.go
+@@ -0,0 +1,95 @@
++//go:build wasip1
++
++/* SPDX-License-Identifier: MIT
++ *
++ * Copyright (C) 2017-2023 WireGuard LLC. All Rights Reserved.
++ */
++
++package device
++
++import (
++	"crypto/cipher"
++	"errors"
++	"unsafe"
++
++	"golang.org/x/crypto/chacha20poly1305"
++)
++
++// On GOOS=wasip1 the packet AEAD is provided by the embedding host, which
++// can use native, hardware-accelerated ChaCha20-Poly1305. Interpreted or
++// JIT-compiled WebAssembly is one to two orders of magnitude slower, which
++// would cap tunnel throughput far below what games need.
++//
++// The host imports take the 32-byte key on every call, so the host keeps no
++// per-key state that could outlive the keypair.
++
++//go:wasmimport tcmc aead_seal
++func hostAEADSeal(key, nonce, src unsafe.Pointer, srcLen uint32, ad unsafe.Pointer, adLen uint32, dst unsafe.Pointer) uint32
++
++//go:wasmimport tcmc aead_open
++func hostAEADOpen(key, nonce, src unsafe.Pointer, srcLen uint32, ad unsafe.Pointer, adLen uint32, dst unsafe.Pointer) uint32
++
++func chacha20poly1305New(key []byte) (cipher.AEAD, error) {
++	if len(key) != chacha20poly1305.KeySize {
++		return nil, errors.New("chacha20poly1305: bad key length")
++	}
++	a := new(hostAEAD)
++	copy(a.key[:], key)
++	return a, nil
++}
++
++type hostAEAD struct {
++	key [chacha20poly1305.KeySize]byte
++}
++
++var errOpen = errors.New("chacha20poly1305: message authentication failed")
++
++func (*hostAEAD) NonceSize() int { return chacha20poly1305.NonceSize }
++func (*hostAEAD) Overhead() int  { return chacha20poly1305.Overhead }
++
++func ptr(b []byte) unsafe.Pointer {
++	if len(b) == 0 {
++		return nil
++	}
++	return unsafe.Pointer(&b[0])
++}
++
++// grow returns dst extended by n bytes, and the extension.
++func grow(dst []byte, n int) (whole, tail []byte) {
++	total := len(dst) + n
++	if cap(dst) >= total {
++		whole = dst[:total]
++	} else {
++		whole = make([]byte, total)
++		copy(whole, dst)
++	}
++	return whole, whole[len(dst):]
++}
++
++func (a *hostAEAD) Seal(dst, nonce, plaintext, ad []byte) []byte {
++	if len(nonce) != chacha20poly1305.NonceSize {
++		panic("chacha20poly1305: bad nonce length passed to Seal")
++	}
++	ret, out := grow(dst, len(plaintext)+chacha20poly1305.Overhead)
++	if e := hostAEADSeal(unsafe.Pointer(&a.key), ptr(nonce), ptr(plaintext), uint32(len(plaintext)),
++		ptr(ad), uint32(len(ad)), ptr(out)); e != 0 {
++		panic("chacha20poly1305: host seal failed")
++	}
++	return ret
++}
++
++func (a *hostAEAD) Open(dst, nonce, ciphertext, ad []byte) ([]byte, error) {
++	if len(nonce) != chacha20poly1305.NonceSize {
++		panic("chacha20poly1305: bad nonce length passed to Open")
++	}
++	if len(ciphertext) < chacha20poly1305.Overhead {
++		return nil, errOpen
++	}
++	ret, out := grow(dst, len(ciphertext)-chacha20poly1305.Overhead)
++	if e := hostAEADOpen(unsafe.Pointer(&a.key), ptr(nonce), ptr(ciphertext), uint32(len(ciphertext)),
++		ptr(ad), uint32(len(ad)), ptr(out)); e != 0 {
++		clear(out)
++		return nil, errOpen
++	}
++	return ret, nil
++}

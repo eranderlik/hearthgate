@@ -1,0 +1,65 @@
+diff --git a/tailscale.com/net/netns/netns.go b/tailscale.com/net/netns/netns.go
+index fe7ff4d..28e9b20 100644
+--- a/tailscale.com/net/netns/netns.go
++++ b/tailscale.com/net/netns/netns.go
+@@ -27,6 +27,35 @@ import (
+ 
+ var disabled atomic.Bool
+ 
++// ListenPacketer creates packet sockets. *net.ListenConfig implements it.
++type ListenPacketer interface {
++	ListenPacket(ctx context.Context, network, address string) (net.PacketConn, error)
++}
++
++// HostNetwork replaces the Go net package's sockets for every Listener and
++// Dialer returned by this package. It is for programs, such as GOOS=wasip1
++// builds embedded in another runtime, whose sockets are supplied by their
++// host rather than by the operating system.
++type HostNetwork interface {
++	ListenPacketer
++	Dialer
++}
++
++var hostNetwork atomic.Pointer[HostNetwork]
++
++// SetHostNetwork installs hn as the source of all sockets created through this
++// package. It must be called before any are created.
++func SetHostNetwork(hn HostNetwork) {
++	hostNetwork.Store(&hn)
++}
++
++func getHostNetwork() HostNetwork {
++	if p := hostNetwork.Load(); p != nil {
++		return *p
++	}
++	return nil
++}
++
+ // SetEnabled enables or disables netns for the process.
+ // It defaults to being enabled.
+ func SetEnabled(on bool) {
+@@ -87,10 +116,13 @@ func SetDisableBindConnToInterfaceAppleExt(logf logger.Logf, v bool) {
+ // Listener returns a new net.Listener with its Control hook func
+ // initialized as necessary to run in logical network namespace that
+ // doesn't route back into Tailscale.
+-func Listener(logf logger.Logf, netMon *netmon.Monitor) *net.ListenConfig {
++func Listener(logf logger.Logf, netMon *netmon.Monitor) ListenPacketer {
+ 	if netMon == nil {
+ 		panic("netns.Listener called with nil netMon")
+ 	}
++	if hn := getHostNetwork(); hn != nil {
++		return hn
++	}
+ 	if disabled.Load() {
+ 		return new(net.ListenConfig)
+ 	}
+@@ -118,6 +150,9 @@ func FromDialer(logf logger.Logf, netMon *netmon.Monitor, d *net.Dialer) Dialer
+ 	if netMon == nil {
+ 		panic("netns.FromDialer called with nil netMon")
+ 	}
++	if hn := getHostNetwork(); hn != nil {
++		return hn
++	}
+ 	if disabled.Load() {
+ 		return d
+ 	}

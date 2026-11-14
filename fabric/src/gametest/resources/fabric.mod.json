@@ -1,0 +1,16 @@
+{
+	"schemaVersion": 1,
+	"id": "tailcatmc-gametest",
+	"version": "1.0.0",
+	"name": "Tailcat for Minecraft client game tests",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": [
+			"dev.tailcatmc.gametest.TailcatClientGameTest",
+			"dev.tailcatmc.gametest.TailcatServerGameTest"
+		]
+	},
+	"depends": {
+		"tailcatmc": "*"
+	}
+}

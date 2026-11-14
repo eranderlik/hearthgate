@@ -1,0 +1,24 @@
+{
+	"schemaVersion": 1,
+	"id": "tailcatmc",
+	"version": "${version}",
+	"name": "Tailcat for Minecraft",
+	"description": "Play with friends on other networks with no port forwarding, accounts, or extra software: share a singleplayer world, or keep a dedicated server reachable (with Discord announcements). Peer-to-peer WireGuard tunnels via Tailcat, running entirely inside the game.",
+	"authors": ["Tailcat for Minecraft contributors"],
+	"contributors": ["Based on Tailscale's tailcat-for-minecraft demo"],
+	"contact": {
+		"sources": "https://github.com/tailscale/tailcat"
+	},
+	"license": "BSD-3-Clause",
+	"environment": "*",
+	"entrypoints": {
+		"client": ["dev.tailcatmc.fabric.TailcatClient"],
+		"server": ["dev.tailcatmc.fabric.server.TailcatServer"]
+	},
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": ">=26.1 <26.4-",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

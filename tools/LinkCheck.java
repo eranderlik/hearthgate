@@ -1,0 +1,28 @@
+import java.io.*; import java.lang.classfile.*; import java.lang.classfile.constantpool.*; import java.nio.file.*; import java.util.*; import java.util.zip.*;
+/** Checks every net.minecraft member referenced by our classes resolves in a target jar (walking superclasses/interfaces). */
+public class LinkCheck {
+  static Map<String, ClassModel> target = new HashMap<>();
+  public static void main(String[] a) throws Exception {
+    try (ZipFile z = new ZipFile(a[0])) { for (var e : Collections.list(z.entries())) if (e.getName().endsWith(".class")) { var cm = ClassFile.of().parse(z.getInputStream(e).readAllBytes()); target.put(cm.thisClass().asInternalName(), cm); } }
+    int refs = 0, bad = 0; Set<String> seen = new TreeSet<>();
+    try (var walk = Files.walk(Path.of("dev"))) { for (Path p : walk.filter(f -> f.toString().endsWith(".class")).toList()) {
+      var cm = ClassFile.of().parse(Files.readAllBytes(p));
+      for (PoolEntry pe : cm.constantPool()) {
+        if (pe instanceof MemberRefEntry m && m.owner().asInternalName().startsWith("net/minecraft/")) {
+          String key = m.owner().asInternalName() + "." + m.name().stringValue() + m.type().stringValue();
+          if (!seen.add(key)) continue; refs++;
+          if (!resolve(m.owner().asInternalName(), m.name().stringValue(), m.type().stringValue(), m instanceof FieldRefEntry)) { bad++; System.out.println("MISSING " + key); }
+        } else if (pe instanceof ClassEntry c && c.asInternalName().startsWith("net/minecraft/") && seen.add(c.asInternalName()) && !target.containsKey(c.asInternalName())) { bad++; System.out.println("MISSING class " + c.asInternalName()); }
+      } } }
+    System.out.println(a[0].replaceAll(".*/", "") + ": " + refs + " member refs, " + bad + " missing");
+  }
+  static boolean resolve(String owner, String name, String desc, boolean field) {
+    ClassModel c = target.get(owner); if (c == null) return false;
+    if (field) { for (var f : c.fields()) if (f.fieldName().equalsString(name) && f.fieldType().equalsString(desc)) return true; }
+    else { for (var m : c.methods()) if (m.methodName().equalsString(name) && m.methodType().equalsString(desc)) return true; }
+    List<String> sup = new ArrayList<>(); c.superclass().ifPresent(s -> sup.add(s.asInternalName())); c.interfaces().forEach(i -> sup.add(i.asInternalName()));
+    for (String s : sup) { if (s.startsWith("net/minecraft/") || s.startsWith("com/mojang/")) { if (resolve(s, name, desc, field)) return true; }
+      else { try { Class<?> k = Class.forName(s.replace('/', '.')); for (var m : k.getMethods()) if (m.getName().equals(name)) return true; for (var f : k.getFields()) if (f.getName().equals(name)) return true; } catch (Exception e) {} } }
+    return false;
+  }
+}

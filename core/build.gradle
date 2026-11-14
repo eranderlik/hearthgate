@@ -1,0 +1,273 @@
+// Loader-independent half of the mod: the WebAssembly host that runs the Go
+// networking helper inside the JVM, plus the helper itself, compiled from Go
+// to WebAssembly and then ahead of time to JVM bytecode.
+//
+// Pipeline (all incremental):
+//   vendorHelper     go mod vendor                     -> helper/vendor
+//   patchHelper      git apply helper/patches/*.patch  -> helper/vendor
+//   buildHelperWasm  GOOS=wasip1 go build              -> build/helper/tcmc-helper.wasm
+//   aotHelper        Chicory build-time compiler       -> build/generated/chicory/{src,classes,wasm}
+//   helperBuildId    SHA-256 of the helper's sources   -> build/generated/buildid (a resource)
+//
+// Optional, for dedicated servers (needs cgo, i.e. a C compiler for the target):
+//   buildHelperNative  go build -buildmode=c-shared    -> build/native/<platform>/<library>
+//     Builds for this machine's platform; cross-compile with
+//     -PnativePlatform=linux-aarch64 -PnativeCc='zig cc -target aarch64-linux-gnu'.
+//
+// Requires Go (the version in helper/go.mod, or any Go >= 1.21 that can fetch
+// it) and git on PATH. Override the Go binary with -Pgo=/path/to/go.
+
+plugins {
+	id 'java-library'
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+configurations {
+	chicoryCompiler
+}
+
+dependencies {
+	api "com.dylibso.chicory:runtime:${chicory_version}"
+	api "com.dylibso.chicory:wasm:${chicory_version}"
+	chicoryCompiler "com.dylibso.chicory:build-time-compiler-cli-experimental:${chicory_version}"
+
+	// Provided by Minecraft at runtime.
+	compileOnly 'org.slf4j:slf4j-api:2.0.17'
+	compileOnly 'com.google.code.gson:gson:2.13.2'
+
+	testImplementation platform('org.junit:junit-bom:5.13.4')
+	testImplementation 'org.junit.jupiter:junit-jupiter'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testImplementation 'com.google.code.gson:gson:2.13.2'
+	testImplementation 'org.slf4j:slf4j-api:2.0.17'
+	testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.17'
+}
+
+def helperDir = rootProject.layout.projectDirectory.dir('helper')
+// Resolve tools against the invoking shell's PATH: a reused Gradle daemon may
+// have been started with a different one, and Exec looks executables up in
+// the daemon's.
+def clientPath = providers.environmentVariable('PATH').getOrElse('')
+def onPath = { String name ->
+	def exts = System.getProperty('os.name').toLowerCase().contains('win') ? ['.exe', '.bat', ''] : ['']
+	for (dir in clientPath.split(File.pathSeparator)) {
+		for (ext in exts) {
+			def f = new File(dir, name + ext)
+			if (f.isFile() && f.canExecute()) {
+				return f.absolutePath
+			}
+		}
+	}
+	return name
+}
+def goExe = providers.gradleProperty('go').orElse(providers.environmentVariable('GO')).orElse(providers.provider { onPath('go') })
+def gitExe = providers.gradleProperty('git').orElse(providers.provider { onPath('git') })
+def helperWasm = layout.buildDirectory.file('helper/tcmc-helper.wasm')
+def generatedDir = layout.buildDirectory.dir('generated/chicory')
+def helperClassName = 'dev.tailcatmc.core.wasm.TcmcHelper'
+
+def helperSources = fileTree(helperDir) {
+	include '**/*.go', 'go.mod', 'go.sum', 'build-tags.txt', 'patches/*.patch'
+	exclude 'vendor/**', 'build/**'
+}
+
+def vendorHelper = tasks.register('vendorHelper', Exec) {
+	description = 'Vendors the helper\'s Go dependencies.'
+	workingDir helperDir
+	inputs.files(helperDir.file('go.mod'), helperDir.file('go.sum'))
+	outputs.dir(helperDir.dir('vendor'))
+	// Always re-vendor (fast, from the module cache) so that patchHelper
+	// starts from pristine sources and never applies a patch twice.
+	outputs.upToDateWhen { false }
+	commandLine goExe.get(), 'mod', 'vendor'
+}
+
+def patchHelper = tasks.register('patchHelper', Exec) {
+	description = 'Applies wasip1 support patches to the vendored dependencies.'
+	dependsOn vendorHelper
+	workingDir rootProject.layout.projectDirectory
+	def patches = fileTree(helperDir.dir('patches')) { include '*.patch' }
+	inputs.files(patches)
+	// Patches edit vendor/ in place; vendorHelper always rewrites it first.
+	outputs.upToDateWhen { false }
+	doFirst {
+		commandLine([gitExe.get(), 'apply', '-p1', '--directory=helper/vendor', '--whitespace=nowarn'] +
+				patches.files.sort { it.name }.collect { it.absolutePath })
+	}
+}
+
+def buildHelperWasm = tasks.register('buildHelperWasm', Exec) {
+	description = 'Compiles the Go helper to WebAssembly (GOOS=wasip1).'
+	dependsOn patchHelper
+	workingDir helperDir
+	inputs.files(helperSources)
+	outputs.file(helperWasm)
+	environment 'GOOS', 'wasip1'
+	environment 'GOARCH', 'wasm'
+	environment 'CGO_ENABLED', '0'
+	environment 'GOFLAGS', '-mod=vendor'
+	doFirst {
+		def tags = helperDir.file('build-tags.txt').asFile.text.trim()
+		commandLine goExe.get(), 'build', '-trimpath', '-buildvcs=false', '-tags', tags,
+				'-ldflags=-s -w', '-o', helperWasm.get().asFile.absolutePath, './cmd/tcmc-helper'
+	}
+}
+
+def aotHelper = tasks.register('aotHelper', JavaExec) {
+	description = 'Compiles the helper WebAssembly module to JVM bytecode.'
+	inputs.file(buildHelperWasm.map { helperWasm.get() })
+	outputs.dir(generatedDir)
+	classpath = configurations.chicoryCompiler
+	mainClass = 'com.dylibso.chicory.experimental.compiler.cli.Cli'
+	maxHeapSize = '6g'
+	javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(25) }
+	doFirst {
+		delete generatedDir
+		def out = generatedDir.get().asFile
+		args helperWasm.get().asFile.absolutePath,
+				"--prefix=${helperClassName}",
+				"--source-dir=${out}/src",
+				"--class-dir=${out}/classes",
+				"--wasm-dir=${out}/wasm",
+				// unicode tables' init function exceeds the JVM's method size
+				// limit; it runs once at startup and is fine interpreted.
+				'--interpreter-fallback=WARN'
+	}
+}
+
+// Identifies the helper sources, so the mod can refuse a native library built
+// from different ones. Line endings are normalised so a Windows checkout
+// computes the same ID.
+def buildIdDir = layout.buildDirectory.dir('generated/buildid')
+def helperBuildId = tasks.register('helperBuildId') {
+	description = 'Computes the helper build ID shared by the mod and its native library.'
+	inputs.files(helperSources).withPathSensitivity(PathSensitivity.RELATIVE)
+	outputs.dir(buildIdDir)
+	def root = helperDir.asFile
+	def sources = helperSources
+	def out = buildIdDir
+	doLast {
+		def md = java.security.MessageDigest.getInstance('SHA-256')
+		sources.files.collect { root.toPath().relativize(it.toPath()).toString().replace('\\', '/') }.sort().each { rel ->
+			md.update((rel + '\n').getBytes('UTF-8'))
+			md.update(new File(root, rel).getText('UTF-8').replace('\r\n', '\n').getBytes('UTF-8'))
+			md.update((byte) 0)
+		}
+		def f = out.get().file('dev/tailcatmc/core/helper-build-id').asFile
+		f.parentFile.mkdirs()
+		f.text = md.digest().encodeHex().toString() + '\n'
+	}
+}
+
+// Native library platforms, named os-arch as in NativePlatform.java.
+def goTargets = [
+	'linux-x86_64'  : ['linux', 'amd64'],
+	'linux-aarch64' : ['linux', 'arm64'],
+	'windows-x86_64': ['windows', 'amd64'],
+	'macos-aarch64' : ['darwin', 'arm64'],
+]
+def hostPlatform = {
+	def os = System.getProperty('os.name').toLowerCase()
+	def arch = System.getProperty('os.arch').toLowerCase() in ['amd64', 'x86_64'] ? 'x86_64' : 'aarch64'
+	(os.contains('win') ? 'windows' : os.contains('mac') ? 'macos' : 'linux') + '-' + arch
+}
+def nativePlatform = providers.gradleProperty('nativePlatform').getOrElse(hostPlatform())
+if (!goTargets.containsKey(nativePlatform)) {
+	throw new GradleException("Unknown nativePlatform ${nativePlatform}; expected one of ${goTargets.keySet()}")
+}
+def nativeLibName = nativePlatform.startsWith('windows') ? 'tcmc.dll'
+		: nativePlatform.startsWith('macos') ? 'libtcmc.dylib' : 'libtcmc.so'
+def nativeLib = layout.buildDirectory.file("native/${nativePlatform}/${nativeLibName}")
+ext.nativePlatform = nativePlatform
+ext.nativeLib = nativeLib
+
+def buildHelperNative = tasks.register('buildHelperNative', Exec) {
+	description = "Compiles the helper as a native shared library for ${nativePlatform}."
+	dependsOn patchHelper, helperBuildId
+	workingDir helperDir
+	inputs.files(helperSources)
+	inputs.dir(buildIdDir)
+	inputs.property('platform', nativePlatform)
+	outputs.file(nativeLib)
+	def target = goTargets[nativePlatform]
+	environment 'GOOS', target[0]
+	environment 'GOARCH', target[1]
+	environment 'CGO_ENABLED', '1'
+	environment 'GOFLAGS', '-mod=vendor'
+	def cc = providers.gradleProperty('nativeCc')
+	if (cc.isPresent()) { environment 'CC', cc.get() }
+	doFirst {
+		def tags = helperDir.file('build-tags.txt').asFile.text.trim()
+		def id = buildIdDir.get().file('dev/tailcatmc/core/helper-build-id').asFile.text.trim()
+		commandLine goExe.get(), 'build', '-trimpath', '-buildvcs=false', '-tags', tags, '-buildmode=c-shared',
+				"-ldflags=-s -w -X main.buildID=${id}", '-o', nativeLib.get().asFile.absolutePath, './cmd/libtcmc'
+	}
+	doLast {
+		// cgo also writes a C header next to the library; it isn't shipped.
+		delete nativeLib.get().asFile.path.replaceFirst(/\.[a-z]+$/, '.h')
+	}
+}
+
+def aotClasses = files(generatedDir.map { it.dir('classes') }).builtBy(aotHelper)
+
+sourceSets {
+	main {
+		java.srcDir(generatedDir.map { it.dir('src') })
+		resources.srcDir(generatedDir.map { it.dir('wasm') })
+		resources.srcDir(helperBuildId)
+		compileClasspath += aotClasses
+		runtimeClasspath += aotClasses
+	}
+	test {
+		compileClasspath += aotClasses
+		runtimeClasspath += aotClasses
+	}
+}
+
+tasks.named('compileJava') { dependsOn aotHelper }
+tasks.named('processResources') { dependsOn aotHelper }
+tasks.named('jar') {
+	dependsOn aotHelper
+	from(aotClasses)
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 25
+	options.encoding = 'UTF-8'
+}
+
+tasks.named('test', Test) {
+	useJUnitPlatform()
+	// Network tests reach Tailcat's public relays; opt in with -PnetworkTests.
+	systemProperty 'tcmc.networkTests', providers.gradleProperty('networkTests').isPresent()
+	maxHeapSize = '2g'
+	if (providers.gradleProperty('testHuge').isPresent()) { jvmArgs '-XX:-DontCompileHugeMethods' }
+	// -PtestNative also runs the end-to-end tests on the native helper.
+	if (providers.gradleProperty('testNative').isPresent()) {
+		dependsOn buildHelperNative
+		systemProperty 'tcmc.nativeLibrary', nativeLib.get().asFile.absolutePath
+		systemProperty 'tcmc.nativePlatform', nativePlatform
+		jvmArgs '--enable-native-access=ALL-UNNAMED'
+	}
+	def helperEnv = providers.gradleProperty('helperEnv')
+	if (helperEnv.isPresent()) { systemProperty 'tailcatmc.helperEnv', helperEnv.get() }
+	// -PtestJfr=path records a Java Flight Recorder profile of the tests.
+	def jfr = providers.gradleProperty('testJfr')
+	if (jfr.isPresent()) {
+		jvmArgs "-XX:StartFlightRecording=filename=${jfr.get()},settings=profile"
+	}
+	testLogging {
+		events 'failed', 'skipped'
+		showStandardStreams = true
+		exceptionFormat = 'full'
+	}
+}

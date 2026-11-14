@@ -1,0 +1,42 @@
+{
+	"tailcatmc.button.share": "Share with Tailcat",
+	"tailcatmc.button.sharing": "Sharing with Tailcat…",
+	"tailcatmc.button.share_tooltip": "Let friends on other networks join this world with an invitation. No port forwarding needed.",
+	"tailcatmc.button.join": "Join with Tailcat",
+	"tailcatmc.button.join_tooltip": "Join a friend's world using a Tailcat invitation.",
+
+	"tailcatmc.starting": "Starting secure tunnel…",
+	"tailcatmc.server_name": "Tailcat World",
+
+	"tailcatmc.share.title": "Share with Tailcat",
+	"tailcatmc.share.sharing": "Your world is shared. Send the invitation to your friends.",
+	"tailcatmc.share.failed": "Could not share: %s",
+	"tailcatmc.share.copy": "Copy Invitation",
+	"tailcatmc.share.copied": "Copied!",
+	"tailcatmc.share.copy_tooltip": "Copies the invitation to your clipboard. Friends paste it into Multiplayer → Join with Tailcat.",
+	"tailcatmc.share.stop": "Stop Sharing",
+	"tailcatmc.share.no_players": "No one has connected yet.",
+	"tailcatmc.share.players": "Connected: %s (%s direct, %s relayed)",
+	"tailcatmc.share.secret_hint": "Anyone with the invitation can join while you share. Stopping makes it invalid.",
+
+	"tailcatmc.join.title": "Join with Tailcat",
+	"tailcatmc.join.help": "Paste the invitation your friend copied from their Share with Tailcat screen.",
+	"tailcatmc.join.invite": "Invitation",
+	"tailcatmc.join.hint": "tcmc1_…",
+	"tailcatmc.join.connect": "Connect",
+	"tailcatmc.join.not_an_invite": "That doesn't look like a Tailcat invitation.",
+	"tailcatmc.join.version_mismatch": "The host is playing Minecraft %s and you have %s; joining may fail.",
+	"tailcatmc.join.failed": "Could not connect: %s",
+
+	"tailcatmc.path.direct": "Direct connection",
+	"tailcatmc.path.relayed": "Relayed via %s (may be slower)",
+
+	"tailcatmc.toast.player_connected": "A player connected via Tailcat",
+	"tailcatmc.toast.stopped": "Tailcat sharing stopped",
+
+	"tailcatmc.error.relay_unreachable": "Couldn't reach Tailcat's relay servers. Check your internet connection.",
+	"tailcatmc.error.host_unreachable": "Couldn't reach the host. They may have stopped sharing, or the invitation is from an earlier session.",
+	"tailcatmc.error.invalid_invite": "That invitation is invalid or incomplete.",
+	"tailcatmc.error.timeout": "Timed out. Check your internet connection and try again.",
+	"tailcatmc.error.unknown": "Something went wrong; see the game log for details."
+}

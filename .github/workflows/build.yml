@@ -1,0 +1,112 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: helper/go.mod
+          cache-dependency-path: helper/go.sum
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Go tests (native)
+        working-directory: helper
+        run: go vet ./... && go test ./...
+
+      - name: Build and test
+        # Network tests talk to Tailcat's public relays from two in-JVM helpers.
+        run: ./gradlew build -PnetworkTests
+
+      - name: Check the 26.1-built jar links against every supported version
+        run: tools/check-linkage.sh
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: tailcat-mc
+          path: fabric/build/libs/*.jar
+
+  # The optional native helper add-on for dedicated servers, built on a runner
+  # of each platform so that no cross-compilers are needed. Linux builds on
+  # the oldest supported Ubuntu so the library runs on glibc 2.34 and later.
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-22.04
+          - platform: linux-aarch64
+            runner: ubuntu-22.04-arm
+          - platform: windows-x86_64
+            runner: windows-2022 # has MinGW-w64 gcc for cgo
+          - platform: macos-aarch64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: helper/go.mod
+          cache-dependency-path: helper/go.sum
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Native helper tests on ${{ matrix.platform }}
+        # Loads the library into a JVM, runs it, and moves data through
+        # Tailcat's relays with it.
+        run: >-
+          ./gradlew :core:test -PtestNative -PnetworkTests -PnativePlatform=${{ matrix.platform }}
+          --tests '*NativeHelpersTest' --tests '*EndToEndTest.nativeHostNativeJoin'
+      - name: Package the add-on
+        run: ./gradlew :fabric:nativeAddonJar -PnativePlatform=${{ matrix.platform }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: tailcat-mc-native-${{ matrix.platform }}
+          path: fabric/build/libs/tailcat-mc-native-*.jar
+
+  gametest:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ["26.1", "26.1.1", "26.1.2", "26.2", "26.3"]
+        native: [false]
+        include:
+          # The dedicated server test again, with the native add-on installed.
+          - mc: "26.3"
+            native: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: helper/go.mod
+          cache-dependency-path: helper/go.sum
+      - uses: gradle/actions/setup-gradle@v5
+      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: In-game test on Minecraft ${{ matrix.mc }}${{ matrix.native && ' (native helper)' || '' }}
+        run: xvfb-run -a ./gradlew :fabric:runClientGameTest -Pmc=${{ matrix.mc }} ${{ matrix.native && '-PgametestNative' || '' }}
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: screenshots-${{ matrix.mc }}${{ matrix.native && '-native' || '' }}
+          path: fabric/build/run/clientGameTest/screenshots/
