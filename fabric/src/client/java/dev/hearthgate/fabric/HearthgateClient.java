@@ -58,7 +58,7 @@ public final class HearthgateClient implements ClientModInitializer {
 		});
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {
 			if (sessions != null) {
-				sessions.onPlayJoin();
+				sessions.onPlayJoin(handler.getConnection());
 			}
 		}));
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {

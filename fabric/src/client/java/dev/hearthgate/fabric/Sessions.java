@@ -52,6 +52,8 @@ public final class Sessions {
 		List<HelperEvent.Peer> peers = List.of();
 		long readyAt;
 		boolean playing;
+		/** The connection to the server joined through this tunnel, once playing. */
+		net.minecraft.network.Connection connection;
 
 		Session(Mode mode) {
 			this.mode = mode;
@@ -207,20 +209,35 @@ public final class Sessions {
 		} else if (!s.playing && s.readyEvent != null && System.nanoTime() - s.readyAt > JOIN_GRACE_NANOS
 				&& !(Compat.screen(mc) instanceof ConnectScreen)) {
 			stop();
+		} else if (s.playing && s.connection != null && !s.connection.isConnected()) {
+			// Fabric's DISCONNECT event doesn't always fire when the client
+			// leaves (e.g. disconnectFromWorld racing the server's close), so
+			// also watch the connection itself. It survives the client's
+			// moves between the configuration and play phases.
+			LOG.info("Hearthgate: the server connection closed; closing the tunnel");
+			stop();
 		}
 	}
 
 	/** Minecraft finished joining a server. */
-	public void onPlayJoin() {
+	public void onPlayJoin(net.minecraft.network.Connection connection) {
 		if (session != null && session.mode == Mode.JOIN && session.readyEvent != null) {
 			session.playing = true;
+			session.connection = connection;
+			LOG.info("Hearthgate: joined the server through the tunnel");
+		} else if (session != null) {
+			LOG.info("Hearthgate: joined a server while a {} session was {}", session.mode,
+					session.readyEvent == null ? "starting" : "ready");
 		}
 	}
 
 	/** Minecraft left a server. */
 	public void onPlayDisconnect() {
 		if (session != null && session.mode == Mode.JOIN && session.playing) {
+			LOG.info("Hearthgate: left the server; closing the tunnel");
 			stop();
+		} else if (session != null) {
+			LOG.info("Hearthgate: left a server; keeping the {} session (playing={})", session.mode, session.playing);
 		}
 	}
 
@@ -234,6 +251,7 @@ public final class Sessions {
 		if (session == s) {
 			session = null;
 		}
+		LOG.info("Hearthgate: {} session ended", s.mode);
 		if (s.helper != null) {
 			s.helper.close();
 		}
