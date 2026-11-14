@@ -84,6 +84,9 @@ jobs:
   gametest:
     needs: build
     runs-on: ubuntu-latest
+    # A passing run takes about 4 minutes. If the game can't open a window
+    # it hangs rather than exits, so don't let that eat the 6-hour default.
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -106,7 +109,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
       - run: sudo apt-get update && sudo apt-get install -y xvfb
       - name: In-game test on Minecraft ${{ matrix.mc }}${{ matrix.native && ' (native helper)' || '' }}
-        run: xvfb-run -a ./gradlew :fabric:runClientGameTest -Pmc=${{ matrix.mc }} ${{ matrix.native && '-PgametestNative' || '' }}
+        # xvfb-run's default screen is 8 bits deep. GLFW (up to 26.2) settles
+        # for the closest visual, but 26.3 opens its window through SDL3,
+        # which needs a 24-bit one and otherwise fails with "Couldn't find
+        # matching GLX visual".
+        run: xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew :fabric:runClientGameTest -Pmc=${{ matrix.mc }} ${{ matrix.native && '-PgametestNative' || '' }}
       - uses: actions/upload-artifact@v5
         if: always()
         with:
