@@ -1,0 +1,86 @@
+diff --git b/tailscale.com/wgengine/netstack/netstack.go b/tailscale.com/wgengine/netstack/netstack.go
+index 332f797..e57e3b1 100644
+--- b/tailscale.com/wgengine/netstack/netstack.go
++++ b/tailscale.com/wgengine/netstack/netstack.go
+@@ -406,7 +406,7 @@ func Create(logf logger.Logf, tundev *tstun.Wrapper, e wgengine.Engine, mc *magi
+ 		supportedGROKind = tcpGROSupported
+ 		supportedGSOKind = stack.HostGSOSupported
+ 	}
+-	ns.linkEP = newLinkEndpoint(512, uint32(tstun.DefaultTUNMTU()), "", supportedGROKind, ns.outboundQueueForPacket)
++	ns.linkEP = newLinkEndpoint(linkEndpointQueueSize, uint32(tstun.DefaultTUNMTU()), "", supportedGROKind, ns.outboundQueueForPacket)
+ 	ns.linkEP.SupportedGSOKind = supportedGSOKind
+ 	if tcpipProblem := ns.ipstack.CreateNIC(nicID, ns.linkEP); tcpipProblem != nil {
+ 		return nil, fmt.Errorf("could not create netstack NIC: %v", tcpipProblem)
+diff --git b/tailscale.com/wgengine/netstack/netstack_tcpbuf_default.go b/tailscale.com/wgengine/netstack/netstack_tcpbuf_default.go
+index ed93175..5336985 100644
+--- b/tailscale.com/wgengine/netstack/netstack_tcpbuf_default.go
++++ b/tailscale.com/wgengine/netstack/netstack_tcpbuf_default.go
+@@ -1,7 +1,7 @@
+ // Copyright (c) Tailscale Inc & contributors
+ // SPDX-License-Identifier: BSD-3-Clause
+ 
+-//go:build !ios
++//go:build !ios && !wasip1
+ 
+ package netstack
+ 
+@@ -17,4 +17,8 @@ const (
+ 	tcpTXBufMinSize = tcp.MinBufferSize
+ 	tcpTXBufDefSize = tcp.DefaultReceiveBufferSize
+ 	tcpTXBufMaxSize = 6 << 20 // 6MiB
++
++	// linkEndpointQueueSize is the capacity, in packets, of each queue
++	// between netstack and its consumers (WireGuard, the host, loopback).
++	linkEndpointQueueSize = 512
+ )
+diff --git b/tailscale.com/wgengine/netstack/netstack_tcpbuf_ios.go b/tailscale.com/wgengine/netstack/netstack_tcpbuf_ios.go
+index a5368da..c23e231 100644
+--- b/tailscale.com/wgengine/netstack/netstack_tcpbuf_ios.go
++++ b/tailscale.com/wgengine/netstack/netstack_tcpbuf_ios.go
+@@ -21,4 +21,8 @@ const (
+ 	tcpTXBufMinSize = tcp.MinBufferSize
+ 	tcpTXBufDefSize = tcp.DefaultReceiveBufferSize
+ 	tcpTXBufMaxSize = tcp.MaxBufferSize
++
++	// linkEndpointQueueSize is the capacity, in packets, of each queue
++	// between netstack and its consumers (WireGuard, the host, loopback).
++	linkEndpointQueueSize = 512
+ )
+diff --git b/tailscale.com/wgengine/netstack/netstack_tcpbuf_wasip1.go b/tailscale.com/wgengine/netstack/netstack_tcpbuf_wasip1.go
+new file mode 100644
+index 0000000..9425bf8
+--- /dev/null
++++ b/tailscale.com/wgengine/netstack/netstack_tcpbuf_wasip1.go
+@@ -0,0 +1,32 @@
++// Copyright (c) Tailscale Inc & contributors
++// SPDX-License-Identifier: BSD-3-Clause
++
++//go:build wasip1
++
++package netstack
++
++import (
++	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
++)
++
++// WebAssembly runs every goroutine on one thread without preemption. A TCP
++// sender therefore queues its whole burst for WireGuard before the goroutine
++// that drains the queue gets to run, and whatever does not fit is dropped,
++// retransmissions included. The connection then recovers one retransmission
++// timeout at a time. So bound what a connection can have in flight (the send
++// buffer, and the window the peer is offered) and give the queue room for
++// several connections' worth of it.
++const (
++	tcpRXBufMinSize = tcp.MinBufferSize
++	tcpRXBufDefSize = tcp.DefaultSendBufferSize
++	tcpRXBufMaxSize = 1 << 20 // 1MiB
++
++	tcpTXBufMinSize = tcp.MinBufferSize
++	tcpTXBufDefSize = tcp.DefaultReceiveBufferSize
++	tcpTXBufMaxSize = 1 << 20 // 1MiB
++
++	// linkEndpointQueueSize is the capacity, in packets, of each queue
++	// between netstack and its consumers (WireGuard, the host, loopback).
++	// A full 1MiB send buffer is under 900 packets.
++	linkEndpointQueueSize = 4096
++)
