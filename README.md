@@ -271,8 +271,8 @@ pick a Go binary.
 
 ### Patches to dependencies
 
-`helper/patches/` holds four small patches that make Tailscale's code usable
-from WebAssembly with host-provided sockets. They should be upstreamed:
+`helper/patches/` holds five small patches that make Tailscale's code usable
+from WebAssembly with host-provided sockets. The first four should be upstreamed:
 
 1. **`0001-netns-host-network`** (tailscale.com): `netns.SetHostNetwork` lets
    an embedder supply every socket Tailscale creates. `netns.Listener` now
@@ -288,6 +288,15 @@ from WebAssembly with host-provided sockets. They should be upstreamed:
    would (no custom `TLSConfig`, pinned `CertName`, or `InsecureForTests`).
    Without TLS state there is no meta cert, so the server's key arrives through
    the normal HTTP upgrade. `DialRegionTLS` returns a `net.Conn` for netcheck.
+5. **`0005-netstack-wasip1-queue`** (tailscale.com): wasip1-only sizes for the
+   in-tunnel TCP stack. WebAssembly runs every goroutine on one thread, so a
+   TCP sender queues its whole burst for WireGuard before the goroutine that
+   drains the queue can run. Tailscale's 512-packet queue overflowed, the
+   excess (retransmissions included) was dropped, and the stream then
+   recovered one multi-second retransmission timeout at a time, which showed
+   up as transfers stalling for minutes. The patch caps TCP buffers at 1 MiB
+   (under 900 packets in flight per connection) and gives the queue 4096
+   slots. Native builds are unchanged.
 
 ### Testing
 
