@@ -107,12 +107,17 @@ jobs:
           go-version-file: helper/go.mod
           cache-dependency-path: helper/go.sum
       - uses: gradle/actions/setup-gradle@v5
-      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      # Mesa's software EGL and Vulkan drivers (llvmpipe, lavapipe), so 26.3's
+      # renderer has a working OpenGL path and a Vulkan fallback.
+      - run: sudo apt-get update && sudo apt-get install -y xvfb libegl1 libegl-mesa0 mesa-vulkan-drivers
       - name: In-game test on Minecraft ${{ matrix.mc }}${{ matrix.native && ' (native helper)' || '' }}
-        # xvfb-run's default screen is 8 bits deep. GLFW (up to 26.2) settles
-        # for the closest visual, but 26.3 opens its window through SDL3,
-        # which needs a 24-bit one and otherwise fails with "Couldn't find
-        # matching GLX visual".
+        # 26.3 opens its window through SDL3 instead of GLFW. Over GLX, SDL3
+        # finds no matching visual on the runner's Mesa ("Couldn't find
+        # matching GLX visual"), so have it create the context through EGL.
+        # GLFW (26.1-26.2) ignores this. xvfb-run's default screen is only 8
+        # bits deep, hence the explicit 24-bit screen.
+        env:
+          SDL_VIDEO_FORCE_EGL: "1"
         run: xvfb-run -a -s "-screen 0 1920x1080x24" ./gradlew :fabric:runClientGameTest -Pmc=${{ matrix.mc }} ${{ matrix.native && '-PgametestNative' || '' }}
       - uses: actions/upload-artifact@v5
         if: always()
