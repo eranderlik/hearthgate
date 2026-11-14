@@ -26,6 +26,7 @@ import (
 	"io"
 	"net/netip"
 	"runtime/debug"
+	"sort"
 	"sync"
 	"time"
 
@@ -329,12 +330,32 @@ func runJoin(ctx context.Context, out *eventWriter, args []string) error {
 	}
 }
 
+// A peer counts as connected while WireGuard traffic arrives from it.
+// Minecraft keeps every connection busy (the server sends a keepalive every
+// 15 seconds and drops clients that don't answer within 30), so a player who
+// is still connected is never quiet for long.
+const (
+	// activeWindow is how long a peer stays "connected" after its last packet.
+	activeWindow = 45 * time.Second
+	// forgetAfter is how long a silent peer is kept before the server drops
+	// it. Tailcat never forgets a client by itself; a returning player simply
+	// connects again.
+	forgetAfter = 5 * time.Minute
+)
+
+type peerActivity struct {
+	rx       int64
+	lastRecv time.Time
+}
+
 // reportPeers emits a peers event whenever the set of connected peers or
-// their paths change, so the game can show whether play is direct or relayed.
+// their paths change, so the game can show who is connected and whether play
+// is direct or relayed.
 func reportPeers(ctx context.Context, out *eventWriter, srv *tailcat.Server) {
 	t := time.NewTicker(statusInterval)
 	defer t.Stop()
 	last := "[]" // don't report an empty set at startup
+	seen := map[key.NodePublic]*peerActivity{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -345,13 +366,33 @@ func reportPeers(ctx context.Context, out *eventWriter, srv *tailcat.Server) {
 		if st == nil {
 			continue
 		}
+		now := time.Now()
 		peers := []peer{}
 		for k, p := range st.Peer {
-			if !p.Online && p.CurAddr == "" && p.Relay == "" {
+			a := seen[k]
+			if a == nil {
+				a = &peerActivity{rx: p.RxBytes, lastRecv: now}
+				seen[k] = a
+			} else if p.RxBytes != a.rx {
+				a.rx, a.lastRecv = p.RxBytes, now
+			}
+			idle := now.Sub(a.lastRecv)
+			if idle >= forgetAfter {
+				srv.DisconnectClient(k)
+				delete(seen, k)
+				continue
+			}
+			if idle >= activeWindow {
 				continue
 			}
 			peers = append(peers, peer{ID: k.ShortString(), Direct: p.CurAddr != "", Relay: p.Relay})
 		}
+		for k := range seen {
+			if _, ok := st.Peer[k]; !ok {
+				delete(seen, k)
+			}
+		}
+		sort.Slice(peers, func(i, j int) bool { return peers[i].ID < peers[j].ID })
 		b, _ := json.Marshal(peers)
 		if string(b) == last {
 			continue

@@ -31,6 +31,7 @@ import (
 	"time"
 	"unsafe"
 
+	"tailscale.com/derp/derphttp"
 	"tailscale.com/net/netmon"
 	"tailscale.com/net/netns"
 )
@@ -43,6 +44,12 @@ func hostTCPConnect(network unsafe.Pointer, networkLen uint32, addr unsafe.Point
 
 //go:wasmimport hearthgate tcp_connect_status
 func hostTCPConnectStatus(fd int32) uint32
+
+//go:wasmimport hearthgate tls_start
+func hostTLSStart(fd int32, serverName unsafe.Pointer, serverNameLen uint32, outFD unsafe.Pointer) uint32
+
+//go:wasmimport hearthgate tls_status
+func hostTLSStatus(fd int32) uint32
 
 //go:wasmimport hearthgate tcp_listen
 func hostTCPListen(addr unsafe.Pointer, addrLen uint32, outFD unsafe.Pointer) uint32
@@ -296,6 +303,72 @@ func dial(ctx context.Context, network, addr string) (net.Conn, error) {
 	return newTCPConn(h), nil
 }
 
+// TLSClient secures nc, a host TCP connection, with the host's TLS stack:
+// the JVM's, which uses hardware AES and is many times faster than
+// crypto/tls running as WebAssembly. The host verifies the server's
+// certificate chain against its trusted roots and the certificate's name
+// against serverName. The returned conn carries plaintext; closing it also
+// closes nc.
+func TLSClient(ctx context.Context, nc net.Conn, serverName string) (net.Conn, error) {
+	tc, ok := nc.(*tcpConn)
+	if !ok {
+		return nil, fmt.Errorf("hostnet: TLS over %T is not supported", nc)
+	}
+	sp, sl := strPtr(serverName)
+	var fd int32
+	if err := errnoOf(hostTLSStart(tc.h.fd, sp, sl, unsafe.Pointer(&fd))); err != nil {
+		return nil, &net.OpError{Op: "tls", Net: "tcp", Addr: tc.remote, Err: err}
+	}
+	h, err := newHostFile(fd, "tls")
+	if err != nil {
+		return nil, err
+	}
+	// The handshake runs on a host thread; as with dial, completion is
+	// reported through write readiness.
+	stop := context.AfterFunc(ctx, func() { h.f.SetWriteDeadline(time.Unix(1, 0)) })
+	err = h.writeOp(func() uint32 { return hostTLSStatus(fd) })
+	if !stop() && ctx.Err() != nil {
+		h.f.Close()
+		return nil, &net.OpError{Op: "tls", Net: "tcp", Addr: tc.remote, Err: ctx.Err()}
+	}
+	if err != nil {
+		h.f.Close()
+		return nil, &net.OpError{Op: "tls", Net: "tcp", Addr: tc.remote,
+			Err: fmt.Errorf("TLS handshake with %s failed (see the game log): %w", serverName, err)}
+	}
+	h.f.SetWriteDeadline(time.Time{})
+	return &tlsConn{tcpConn: newTCPConn(h), raw: tc}, nil
+}
+
+// tlsConn is a host TLS stream over a host TCP connection.
+type tlsConn struct {
+	*tcpConn
+	raw *tcpConn
+}
+
+func (c *tlsConn) Close() error {
+	err := c.tcpConn.Close()
+	c.raw.Close()
+	return err
+}
+
+func dialTLS(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	nc, err := dial(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+	c, err := TLSClient(ctx, nc, host)
+	if err != nil {
+		nc.Close()
+		return nil, err
+	}
+	return c, nil
+}
+
 type tcpListener struct {
 	h    *hostFile
 	addr *net.TCPAddr
@@ -473,8 +546,17 @@ var errNoResolver = errors.New("hostnet: DNS lookups are performed by the host; 
 func Install(logf func(string, ...any)) {
 	netns.SetHostNetwork(hostNetwork{})
 	netmon.RegisterInterfaceGetter(interfaces)
+	// HEARTHGATE_GO_TLS=1 (passed with -Dhearthgate.helperEnv) keeps TLS in
+	// Go, e.g. if a network's TLS interception needs Go's root handling.
+	hostTLS := os.Getenv("HEARTHGATE_GO_TLS") == ""
+	if hostTLS {
+		derphttp.HostTLS = TLSClient
+	}
 	if t, ok := http.DefaultTransport.(*http.Transport); ok {
 		t.DialContext = dial
+		if hostTLS {
+			t.DialTLSContext = dialTLS
+		}
 		t.Proxy = nil
 	}
 	// The host resolves names passed to DialTCP. Make any other lookup fail

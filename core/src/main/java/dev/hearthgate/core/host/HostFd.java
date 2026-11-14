@@ -151,7 +151,7 @@ abstract class HostFd {
 
 	/** A TCP stream. Outbound connections are set up on a worker thread. */
 	static final class Tcp extends HostFd {
-		static final int CONNECTING = 0, CONNECTED = 1, FAILED = 2, CLOSED = 3;
+		static final int CONNECTING = 0, CONNECTED = 1, FAILED = 2, CLOSED = 3, UPGRADED = 4;
 
 		private volatile int state;
 		private volatile int error;
@@ -204,6 +204,14 @@ abstract class HostFd {
 			return channel;
 		}
 
+		private Tls upgradedTo;
+
+		/** The connection now carries TLS run by the host (see {@link Tls}); the guest no longer uses it. */
+		synchronized void handOver(Tls tls) {
+			state = UPGRADED;
+			upgradedTo = tls;
+		}
+
 		@Override
 		SelectableChannel channel() {
 			return state == CONNECTED ? channel : null;
@@ -222,10 +230,252 @@ abstract class HostFd {
 		@Override
 		synchronized void close() throws IOException {
 			state = CLOSED;
+			if (upgradedTo != null) {
+				// Closing the TCP connection under TLS (DERP does) ends the TLS
+				// stream too; mark it closed first so that isn't reported as an error.
+				upgradedTo.close();
+			}
 			SocketChannel ch = channel;
 			if (ch != null) {
 				ch.close();
 			}
+		}
+	}
+
+	/**
+	 * A TLS client stream run by the JDK over a connected TCP socket taken
+	 * from the guest (see {@code tls_start}). The guest reads and writes
+	 * plaintext. A virtual thread does the handshake and then reads; another
+	 * writes. Both exchange data with the guest through bounded buffers and
+	 * report readiness changes by waking the selector.
+	 */
+	static final class Tls extends HostFd {
+		static final int HANDSHAKING = 0, OPEN = 1, FAILED = 2, CLOSED = 3;
+		private static final int MAX_BUFFERED = 256 * 1024;
+		private static final int READ_CHUNK = 16 * 1024;
+		private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger("hearthgate");
+
+		final SocketChannel channel;
+		private final String serverName;
+		private final Runnable wakeup;
+		private final ArrayDeque<byte[]> in = new ArrayDeque<>();
+		private final ArrayDeque<byte[]> out = new ArrayDeque<>();
+		private int inBytes, inOffset, outBytes;
+		private boolean inEof, shutdownWrite, outputShut;
+		private volatile int state = HANDSHAKING;
+		private volatile int error;
+		private javax.net.ssl.SSLSocket ssl;
+
+		private final javax.net.ssl.SSLContext context;
+
+		/** {@code channel} must be connected, in blocking mode, and no longer selected. */
+		Tls(SocketChannel channel, String serverName, Runnable wakeup) {
+			this(channel, serverName, wakeup, null);
+		}
+
+		/** With a specific TLS context instead of the JVM's default trust; for tests. */
+		Tls(SocketChannel channel, String serverName, Runnable wakeup, javax.net.ssl.SSLContext context) {
+			super(FILETYPE_SOCKET_STREAM, true);
+			this.channel = channel;
+			this.serverName = serverName;
+			this.wakeup = wakeup;
+			this.context = context;
+		}
+
+		void start() {
+			Thread.ofVirtual().name("hearthgate-tls-read").start(this::handshakeAndRead);
+		}
+
+		private void handshakeAndRead() {
+			try {
+				java.net.InetSocketAddress remote = (java.net.InetSocketAddress) channel.getRemoteAddress();
+				javax.net.ssl.SSLSocket s = (javax.net.ssl.SSLSocket) (context != null ? context
+						: javax.net.ssl.SSLContext.getDefault()).getSocketFactory().createSocket(channel.socket(), serverName, remote.getPort(), true);
+				javax.net.ssl.SSLParameters p = s.getSSLParameters();
+				// Verify the certificate's name, as an HTTPS client does.
+				p.setEndpointIdentificationAlgorithm("HTTPS");
+				p.setServerNames(java.util.List.of(new javax.net.ssl.SNIHostName(serverName)));
+				s.setSSLParameters(p);
+				s.startHandshake();
+				synchronized (this) {
+					if (state != HANDSHAKING) {
+						return; // closed meanwhile
+					}
+					ssl = s;
+					state = OPEN;
+				}
+				wakeup.run();
+				Thread.ofVirtual().name("hearthgate-tls-write").start(this::write);
+				java.io.InputStream is = s.getInputStream();
+				while (true) {
+					synchronized (this) {
+						while (inBytes >= MAX_BUFFERED && state == OPEN) {
+							wait();
+						}
+						if (state != OPEN) {
+							return;
+						}
+					}
+					byte[] buf = new byte[READ_CHUNK];
+					int n = is.read(buf);
+					synchronized (this) {
+						if (n < 0) {
+							inEof = true;
+						} else {
+							in.add(n == buf.length ? buf : java.util.Arrays.copyOf(buf, n));
+							inBytes += n;
+						}
+					}
+					wakeup.run();
+					if (n < 0) {
+						return;
+					}
+				}
+			} catch (javax.net.ssl.SSLException e) {
+				fail(Errno.ECONNABORTED, e, true);
+			} catch (IOException e) {
+				fail(Errno.ECONNRESET, e, false);
+			} catch (InterruptedException e) {
+				fail(Errno.ECONNRESET, e, false);
+			} catch (RuntimeException | java.security.NoSuchAlgorithmException e) {
+				fail(Errno.ECONNABORTED, e, true);
+			}
+		}
+
+		private void write() {
+			try {
+				java.io.OutputStream os = ssl.getOutputStream();
+				while (true) {
+					byte[] chunk;
+					synchronized (this) {
+						while (out.isEmpty() && !shutdownWrite && state == OPEN) {
+							wait();
+						}
+						if (state != OPEN) {
+							return;
+						}
+						if (out.isEmpty()) { // shutdownWrite with everything sent
+							if (!outputShut) {
+								outputShut = true;
+								ssl.shutdownOutput();
+							}
+							wait();
+							continue;
+						}
+						chunk = out.poll();
+						outBytes -= chunk.length;
+					}
+					wakeup.run(); // there is room to write again
+					os.write(chunk);
+					os.flush();
+				}
+			} catch (IOException | InterruptedException e) {
+				fail(Errno.ECONNRESET, e, false);
+			}
+		}
+
+		private void fail(int errno, Exception e, boolean log) {
+			boolean first;
+			int was;
+			synchronized (this) {
+				was = state;
+				first = state == HANDSHAKING || state == OPEN;
+				if (first) {
+					error = errno;
+					state = FAILED;
+				}
+				notifyAll();
+			}
+			if (first && log) {
+				javax.net.ssl.SSLSocket s = ssl;
+				LOG.warn("TLS connection to {} failed {}: {}", serverName,
+						was == HANDSHAKING ? "during the handshake" : "after the handshake ("
+								+ (s == null ? "?" : s.getSession().getProtocol() + ", "
+								+ s.getSession().getCipherSuite()) + ")",
+						e.getCause() == null ? e.toString() : e + " (caused by " + e.getCause() + ")");
+			}
+			try {
+				channel.close();
+			} catch (IOException ignored) {
+			}
+			wakeup.run();
+		}
+
+		int state() {
+			return state;
+		}
+
+		int error() {
+			return error;
+		}
+
+		/** Copies decrypted bytes; returns -1 for EAGAIN, 0 for EOF, or -2 when failed. */
+		synchronized int recv(byte[] dst, int len) {
+			if (in.isEmpty()) {
+				if (state == FAILED || state == CLOSED) {
+					return -2;
+				}
+				return inEof ? 0 : -1;
+			}
+			int n = 0;
+			while (n < len && !in.isEmpty()) {
+				byte[] head = in.peek();
+				int take = Math.min(len - n, head.length - inOffset);
+				System.arraycopy(head, inOffset, dst, n, take);
+				n += take;
+				inOffset += take;
+				if (inOffset == head.length) {
+					in.poll();
+					inOffset = 0;
+				}
+			}
+			inBytes -= n;
+			notifyAll();
+			return n;
+		}
+
+		/** Queues plaintext; returns bytes taken, -1 for EAGAIN, or -2 when failed or shut down. */
+		synchronized int send(byte[] src) {
+			if (state == HANDSHAKING) {
+				return -1;
+			}
+			if (state != OPEN || shutdownWrite) {
+				return -2;
+			}
+			int room = MAX_BUFFERED - outBytes;
+			if (room <= 0) {
+				return -1;
+			}
+			byte[] chunk = src.length <= room ? src : java.util.Arrays.copyOf(src, room);
+			out.add(chunk);
+			outBytes += chunk.length;
+			notifyAll();
+			return chunk.length;
+		}
+
+		synchronized void shutdownOutput() {
+			shutdownWrite = true;
+			notifyAll();
+		}
+
+		@Override
+		synchronized boolean readReady() {
+			return state != HANDSHAKING && (state != OPEN || inEof || !in.isEmpty());
+		}
+
+		@Override
+		synchronized boolean writeReady() {
+			return state != HANDSHAKING && (state != OPEN || outBytes < MAX_BUFFERED);
+		}
+
+		@Override
+		void close() throws IOException {
+			synchronized (this) {
+				state = CLOSED;
+				notifyAll();
+			}
+			// Closing the socket, not the SSLSocket, never blocks on a close_notify.
+			channel.close();
 		}
 	}
 

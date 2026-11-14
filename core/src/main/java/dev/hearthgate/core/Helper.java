@@ -19,6 +19,9 @@ public interface Helper extends AutoCloseable {
 	/** Completes with the exit code when the helper stops. */
 	CompletableFuture<Integer> exitFuture();
 
+	/** Asks the helper to log every goroutine's stack, for diagnosing stalls. */
+	default void dumpStacks() {}
+
 	/** Memory the helper uses, for diagnostics; 0 if unknown. */
 	long memoryBytes();
 

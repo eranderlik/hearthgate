@@ -1,0 +1,96 @@
+--- a/tailscale.com/derp/derphttp/derphttp_client.go
++++ b/tailscale.com/derp/derphttp/derphttp_client.go
+@@ -471,7 +471,15 @@
+ 	var serverPub key.NodePublic // or zero if unknown (if not using TLS or TLS middlebox eats it)
+ 	var serverProtoVersion int
+ 	var tlsState *tls.ConnectionState
+-	if c.useHTTPS() {
++	if c.useHTTPS() && c.useHostTLS(node) {
++		// The host verified the certificate. Without the TLS state there is
++		// no meta cert, so the server's key arrives by the HTTP upgrade below.
++		hc, err := HostTLS(ctx, tcpConn, c.tlsServerName(node))
++		if err != nil {
++			return nil, 0, err
++		}
++		httpConn = hc
++	} else if c.useHTTPS() {
+ 		tlsConn := c.tlsClient(tcpConn, node)
+ 		httpConn = tlsConn
+ 
+@@ -657,6 +665,21 @@
+ 	return nil, nil, firstErr
+ }
+ 
++// HostTLS, if non-nil, performs the TLS client handshake for DERP
++// connections in place of crypto/tls, returning the decrypted stream. It is
++// for programs, such as GOOS=wasip1 builds embedded in another runtime, whose
++// host can do TLS far faster than they can. The host must verify the server's
++// certificate chain against public roots and its name against serverName.
++//
++// It is used only where standard verification applies: not with a custom
++// TLSConfig, nor for nodes with a pinned CertName or InsecureForTests.
++var HostTLS func(ctx context.Context, nc net.Conn, serverName string) (net.Conn, error)
++
++func (c *Client) useHostTLS(node *tailcfg.DERPNode) bool {
++	return HostTLS != nil && c.TLSConfig == nil &&
++		(node == nil || (!node.InsecureForTests && node.CertName == ""))
++}
++
+ func (c *Client) tlsClient(nc net.Conn, node *tailcfg.DERPNode) *tls.Conn {
+ 	tlsConf := tlsdial.Config(c.HealthTracker, c.TLSConfig)
+ 	// node is allowed to be nil here, tlsServerName falls back to using the URL
+@@ -683,15 +706,24 @@
+ // DERP nodes for a region are tried in sequence according to their order
+ // in the DERP map. TLS is initiated on the first node where a socket is
+ // established.
+-func (c *Client) DialRegionTLS(ctx context.Context, reg *tailcfg.DERPRegion) (tlsConn *tls.Conn, connClose io.Closer, node *tailcfg.DERPNode, err error) {
++func (c *Client) DialRegionTLS(ctx context.Context, reg *tailcfg.DERPRegion) (tlsConn net.Conn, connClose io.Closer, node *tailcfg.DERPNode, err error) {
+ 	tcpConn, node, err := c.dialRegion(ctx, reg)
+ 	if err != nil {
+ 		return nil, nil, nil, fmt.Errorf("dialRegion(%d): %w", reg.RegionID, err)
+ 	}
++	if c.useHostTLS(node) {
++		hc, err := HostTLS(ctx, tcpConn, c.tlsServerName(node))
++		if err != nil {
++			tcpConn.Close()
++			return nil, nil, nil, err
++		}
++		return hc, tcpConn, node, nil
++	}
+ 	done := make(chan bool) // unbuffered
+ 	defer close(done)
+ 
+-	tlsConn = c.tlsClient(tcpConn, node)
++	goTLS := c.tlsClient(tcpConn, node)
++	tlsConn = goTLS
+ 	go func() {
+ 		select {
+ 		case <-done:
+@@ -699,7 +731,7 @@
+ 			tcpConn.Close()
+ 		}
+ 	}()
+-	err = tlsConn.Handshake()
++	err = goTLS.Handshake()
+ 	if err != nil {
+ 		return nil, nil, nil, err
+ 	}
+--- a/tailscale.com/net/netcheck/netcheck.go
++++ b/tailscale.com/net/netcheck/netcheck.go
+@@ -8,7 +8,6 @@
+ 	"bufio"
+ 	"cmp"
+ 	"context"
+-	"crypto/tls"
+ 	"errors"
+ 	"fmt"
+ 	"io"
+@@ -1172,7 +1171,7 @@
+ 		return 0, ip, fmt.Errorf("no unexpected RemoteAddr %#v", tlsConn.RemoteAddr())
+ 	}
+ 
+-	connc := make(chan *tls.Conn, 1)
++	connc := make(chan net.Conn, 1)
+ 	connc <- tlsConn
+ 
+ 	// make an HTTP request to measure, as this enables us to account for MITM

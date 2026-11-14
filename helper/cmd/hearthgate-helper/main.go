@@ -11,10 +11,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
-	"io"
 	"log"
 	"os"
+	"runtime"
 
 	"hearthgate/helper/internal/app"
 	"hearthgate/helper/internal/hostnet"
@@ -27,8 +28,15 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
-		// The JVM closes stdin to stop the session.
-		_, _ = io.Copy(io.Discard, os.Stdin)
+		// The JVM closes stdin to stop the session. A "stacks" line logs
+		// every goroutine's stack, for diagnosing stalls.
+		sc := bufio.NewScanner(os.Stdin)
+		for sc.Scan() {
+			if sc.Text() == "stacks" {
+				buf := make([]byte, 1<<20)
+				log.Printf("goroutine dump:\n%s", buf[:runtime.Stack(buf, true)])
+			}
+		}
 		cancel()
 	}()
 	app.Run(ctx, os.Stdout, log.Printf, os.Args[1:])

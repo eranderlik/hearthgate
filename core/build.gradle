@@ -258,6 +258,12 @@ tasks.named('test', Test) {
 		systemProperty 'hearthgate.nativePlatform', nativePlatform
 		jvmArgs '--enable-native-access=ALL-UNNAMED'
 	}
+	// -PhelperJit=c1|c2|auto overrides JitPolicy. CI uses c1: both ends of a
+	// test tunnel share one small runner, like two 2-core machines.
+	def helperJit = providers.gradleProperty('helperJit')
+	if (helperJit.isPresent()) { systemProperty 'hearthgate.helperJit', helperJit.get() }
+	// -PtestVerbose logs Tailcat's networking diagnostics in end-to-end tests.
+	systemProperty 'hearthgate.testVerbose', providers.gradleProperty('testVerbose').isPresent()
 	def helperEnv = providers.gradleProperty('helperEnv')
 	if (helperEnv.isPresent()) { systemProperty 'hearthgate.helperEnv', helperEnv.get() }
 	// -PtestJfr=path records a Java Flight Recorder profile of the tests.

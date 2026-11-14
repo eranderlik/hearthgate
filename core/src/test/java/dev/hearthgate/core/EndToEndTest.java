@@ -91,7 +91,7 @@ class EndToEndTest {
 			Recorder host = new Recorder("host");
 			long t0 = System.nanoTime();
 			Helper hs = hostB.start(
-					List.of("host", "--target", "127.0.0.1:" + echo.getLocalPort(), "--mc", "test"),
+					verbose("host", "--target", "127.0.0.1:" + echo.getLocalPort(), "--mc", "test"),
 					NetworkPolicy.forHost(echo.getLocalPort()), host);
 			HelperEvent ready = host.nextOfType("ready", 90);
 			System.out.printf("[%s] host ready after %.1fs%n", label, (System.nanoTime() - t0) / 1e9);
@@ -102,7 +102,7 @@ class EndToEndTest {
 			for (int i = 0; i < players; i++) {
 				Recorder join = new Recorder("join" + i);
 				long t1 = System.nanoTime();
-				joinHelpers.add(joinB.start(List.of("join", "--invite", ready.invite()), NetworkPolicy.forJoin(), join));
+				joinHelpers.add(joinB.start(verbose("join", "--invite", ready.invite()), NetworkPolicy.forJoin(), join));
 				HelperEvent joined = join.nextOfType("ready", 90);
 				System.out.printf("[%s] join %d ready after %.1fs%n", label, i, (System.nanoTime() - t1) / 1e9);
 				String[] hp = joined.address().split(":");
@@ -122,8 +122,17 @@ class EndToEndTest {
 					th.start();
 					threads.add(th);
 				}
+				List<Helper> all = new ArrayList<>(joinHelpers);
+				all.add(hs);
 				for (Thread th : threads) {
-					th.join(240_000);
+					th.join(60_000);
+				}
+				if (threads.stream().anyMatch(Thread::isAlive)) {
+					System.out.printf("[%s] round %d stalled; dumping helper goroutines%n", label, round);
+					all.forEach(Helper::dumpStacks);
+				}
+				for (Thread th : threads) {
+					th.join(180_000);
 				}
 				double secs = (System.nanoTime() - t) / 1e9;
 				long total = (long) players * (8 << 20);
@@ -160,6 +169,15 @@ class EndToEndTest {
 			}
 			assertEquals(0, host.exited.get(20, TimeUnit.SECONDS));
 		}
+	}
+
+	/** Helper arguments, plus --verbose (Tailcat's diagnostics) with -PtestVerbose. */
+	private static List<String> verbose(String... args) {
+		List<String> l = new ArrayList<>(List.of(args));
+		if (Boolean.getBoolean("hearthgate.testVerbose")) {
+			l.add("--verbose");
+		}
+		return l;
 	}
 
 	private static void echoThrough(InetSocketAddress addr, byte[] data, byte[] got) {

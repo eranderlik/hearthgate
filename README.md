@@ -172,6 +172,18 @@ as native Go instead:
 * WireGuard's per-packet ChaCha20-Poly1305 is delegated to the JDK
   (`aead_seal`/`aead_open`), which uses hardware intrinsics. It is over 100×
   faster than the same code running as WebAssembly.
+* TLS to the relays (DERP connections, netcheck's HTTPS probe, and the DERP
+  map download) is also run by the JDK. `tls_start` hands a connected socket
+  to a JDK TLS client, and the guest reads and writes plaintext. The JDK
+  verifies the certificate chain against its trusted roots and the name
+  against the relay's hostname. Connecting to a relay takes about 0.3 s
+  instead of 2.7 s with `crypto/tls` running as WebAssembly. Pinned or
+  self-signed relay certificates still use Go's TLS, and
+  `-Dhearthgate.helperEnv=HEARTHGATE_GO_TLS=1` switches back to it entirely.
+* On machines with 2 or fewer CPU cores, the helper's generated classes are
+  kept out of HotSpot's C2 compiler (`JitPolicy`, which adds a compiler
+  directive at runtime, so no launch flag is needed). See
+  [Performance](#performance) for why.
 * **`core/…/server/`** holds the dedicated-server logic, independent of the
   mod loader: identity persistence, supervision, rotation, and the Discord
   webhook client.
@@ -204,6 +216,23 @@ above 8,000 bytecodes, and several hot Go runtime functions exceed that.
 Players who can set JVM arguments gain about 25% with
 `-XX:-DontCompileHugeMethods`. Go runtime settings can be passed to the helper
 with `-Dhearthgate.helperEnv=GOGC=400`, but GC tuning measured under 10%.
+
+**Machines with few cores.** For the first minute or two, C2 spends tens of
+CPU-seconds optimizing the helper's very large generated methods. On a
+2-core machine that starves the helper itself. It misses network deadlines,
+its connection keeps switching between direct and relayed, and the
+tunnelled TCP stream backs off until it barely moves. So on such machines
+the helper's code runs with C1 only, which roughly halves peak throughput
+but removes the stall. Measured with each side in its own JVM and its own
+cores, echoing 8 MiB:
+
+| Cores per side | First 8 MiB | After warm-up |
+|---|---|---|
+| 2, C2 (before) | 221 s (0.04 MB/s) | ~1.2 MB/s |
+| 2, C1 only (now the default) | 25 s (0.34 MB/s) | 0.4–0.6 MB/s |
+| 4, C2 (unchanged) | 28–31 s (~0.3 MB/s) | ~1.3–1.5 MB/s |
+
+`-Dhearthgate.helperJit=c2` or `=c1` overrides the automatic choice.
 
 On a server, the host helper's throughput is shared by all players. With the
 native add-on it stops being the bottleneck (same machine, through Tailcat's
@@ -242,7 +271,7 @@ pick a Go binary.
 
 ### Patches to dependencies
 
-`helper/patches/` holds three small patches that make Tailscale's code usable
+`helper/patches/` holds four small patches that make Tailscale's code usable
 from WebAssembly with host-provided sockets. They should be upstreamed:
 
 1. **`0001-netns-host-network`** (tailscale.com): `netns.SetHostNetwork` lets
@@ -254,6 +283,11 @@ from WebAssembly with host-provided sockets. They should be upstreamed:
    filename limits it to `GOOS=js`, so magicsock doesn't compile for wasip1.
 3. **`0003-wireguard-host-aead`** (wireguard-go): a wasip1 implementation of the
    existing per-platform `chacha20poly1305New` hook that calls the host.
+4. **`0004-derphttp-host-tls`** (tailscale.com): `derphttp.HostTLS` lets an
+   embedder perform DERP's TLS. It applies only where standard verification
+   would (no custom `TLSConfig`, pinned `CertName`, or `InsecureForTests`).
+   Without TLS state there is no meta cert, so the server's key arrives through
+   the normal HTTP upgrade. `DialRegionTLS` returns a `net.Conn` for netcheck.
 
 ### Testing
 
@@ -262,6 +296,9 @@ from WebAssembly with host-provided sockets. They should be upstreamed:
 ./gradlew :core:test                           # host + Wasm smoke tests (offline)
 ./gradlew :core:test -PnetworkTests            # + host/join and dedicated hosting (restart, rotation,
                                                #   Discord via a fake webhook) through Tailcat's real relays
+./gradlew :core:test -PnetworkTests -PhelperJit=c1  # as CI runs them: both tunnel ends share a small
+                                               #   runner, like two 2-core machines (-PtestVerbose for
+                                               #   Tailcat's logs; a stalled transfer dumps goroutines)
 ./gradlew :core:test -PtestNative -PnetworkTests  # + the same on the native helper, and the
                                                #   multi-player throughput comparison
 ./gradlew :fabric:runClientGameTest -Pmc=26.3  # in-game test on a real client (opens a window)

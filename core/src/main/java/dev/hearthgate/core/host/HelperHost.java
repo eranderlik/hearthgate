@@ -246,6 +246,8 @@ public final class HelperHost implements AutoCloseable {
 		// hearthgate: sockets
 		f.add(errnoFn(TCMC, "tcp_connect", "iiiii", this::tcpConnect));
 		f.add(errnoFn(TCMC, "tcp_connect_status", "i", this::tcpConnectStatus));
+		f.add(errnoFn(TCMC, "tls_start", "iiii", this::tlsStart));
+		f.add(errnoFn(TCMC, "tls_status", "i", this::tlsStatus));
 		f.add(errnoFn(TCMC, "tcp_listen", "iii", this::tcpListen));
 		f.add(errnoFn(TCMC, "tcp_accept", "ii", this::tcpAccept));
 		f.add(errnoFn(TCMC, "sock_recv", "iiii", this::sockRecv));
@@ -692,7 +694,61 @@ public final class HelperHost implements AutoCloseable {
 		};
 	}
 
+	/**
+	 * tls_start(tcp_fd, server_name, len, out_fd): moves a connected TCP
+	 * socket to a new descriptor on which the JDK runs a TLS client. The
+	 * handshake runs on a host thread; the guest waits for write readiness and
+	 * then calls tls_status, as with tcp_connect. No new connection is made,
+	 * so the network policy that admitted the TCP connection still applies.
+	 */
+	private int tlsStart(Memory m, long[] a) throws IOException {
+		if (!(fds.get(u32(a[0])) instanceof HostFd.Tcp t) || t.state() != HostFd.Tcp.CONNECTED) {
+			return Errno.ENOTCONN;
+		}
+		String serverName = str(m, a[1], a[2]);
+		if (serverName.isEmpty()) {
+			return Errno.EINVAL;
+		}
+		SocketChannel ch = t.socket();
+		SelectionKey k = ch.keyFor(selector);
+		if (k != null) {
+			k.cancel();
+			selector.selectNow(); // deregister, so the channel can block
+		}
+		ch.configureBlocking(true);
+		HostFd.Tls tls = new HostFd.Tls(ch, serverName, selector::wakeup);
+		t.handOver(tls);
+		m.writeI32(u32(a[3]), allocate(tls));
+		tls.start();
+		return 0;
+	}
+
+	private int tlsStatus(Memory m, long[] a) {
+		if (!(fds.get(u32(a[0])) instanceof HostFd.Tls t)) {
+			return Errno.EBADF;
+		}
+		return switch (t.state()) {
+			case HostFd.Tls.HANDSHAKING -> Errno.EAGAIN;
+			case HostFd.Tls.OPEN -> 0;
+			case HostFd.Tls.FAILED -> t.error();
+			default -> Errno.EBADF;
+		};
+	}
+
 	private int sockRecv(Memory m, long[] a) throws IOException {
+		if (fds.get(u32(a[0])) instanceof HostFd.Tls t) {
+			byte[] buf = new byte[Math.min(u32(a[2]), IO_CHUNK)];
+			int n = t.recv(buf, buf.length);
+			if (n == -1) {
+				return Errno.EAGAIN;
+			}
+			if (n == -2) {
+				return t.error() != 0 ? t.error() : Errno.ECONNRESET;
+			}
+			m.write(u32(a[1]), buf, 0, n);
+			m.writeI32(u32(a[3]), n);
+			return 0;
+		}
 		SocketChannel ch = connected(u32(a[0]));
 		if (ch == null) {
 			return Errno.EAGAIN;
@@ -712,6 +768,17 @@ public final class HelperHost implements AutoCloseable {
 	}
 
 	private int sockSend(Memory m, long[] a) throws IOException {
+		if (fds.get(u32(a[0])) instanceof HostFd.Tls t) {
+			int n = t.send(m.readBytes(u32(a[1]), Math.min(u32(a[2]), IO_CHUNK)));
+			if (n == -1) {
+				return Errno.EAGAIN;
+			}
+			if (n == -2) {
+				return t.error() != 0 ? t.error() : Errno.EPIPE;
+			}
+			m.writeI32(u32(a[3]), n);
+			return 0;
+		}
 		SocketChannel ch = connected(u32(a[0]));
 		if (ch == null) {
 			return Errno.EAGAIN;
@@ -726,6 +793,10 @@ public final class HelperHost implements AutoCloseable {
 	}
 
 	private int sockShutdownWrite(Memory m, long[] a) throws IOException {
+		if (fds.get(u32(a[0])) instanceof HostFd.Tls t) {
+			t.shutdownOutput();
+			return 0;
+		}
 		SocketChannel ch = connected(u32(a[0]));
 		if (ch == null) {
 			return Errno.ENOTCONN;
@@ -813,6 +884,7 @@ public final class HelperHost implements AutoCloseable {
 		SocketAddress sa = switch (f) {
 			case HostFd.Tcp t when t.socket() != null ->
 					remote ? t.socket().getRemoteAddress() : t.socket().getLocalAddress();
+			case HostFd.Tls t -> remote ? t.channel.getRemoteAddress() : t.channel.getLocalAddress();
 			case HostFd.Listener l -> remote ? null : l.channel.getLocalAddress();
 			case HostFd.Udp u -> remote ? null : u.channel.getLocalAddress();
 			case null, default -> null;

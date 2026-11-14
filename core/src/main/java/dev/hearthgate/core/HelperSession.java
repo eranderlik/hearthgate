@@ -78,6 +78,7 @@ public final class HelperSession implements Helper {
 
 	/** Starts the helper with the given arguments (after argv[0]). */
 	public static HelperSession start(List<String> args, NetworkPolicy policy, Listener listener) throws IOException {
+		JitPolicy.apply();
 		HelperSession s = new HelperSession(args, policy, listener);
 		s.thread.start();
 		return s;
@@ -88,6 +89,7 @@ public final class HelperSession implements Helper {
 	 * first session starts quickly. Safe to call from any thread, repeatedly.
 	 */
 	public static void preload() {
+		JitPolicy.apply();
 		HearthgateHelper.load();
 	}
 
@@ -114,6 +116,11 @@ public final class HelperSession implements Helper {
 		}
 		exit.complete(code);
 		listener.onExit(code, error);
+	}
+
+	@Override
+	public void dumpStacks() {
+		host.feedStdin("stacks\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
 	}
 
 	/** Asks the helper to shut down by closing its stdin. */

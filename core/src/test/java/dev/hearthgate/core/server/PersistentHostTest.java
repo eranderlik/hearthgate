@@ -87,12 +87,16 @@ class PersistentHostTest {
 			String inviteB = invite(rotated);
 			assertNotEquals(inviteA, inviteB);
 			assertTrue(echoThrough(inviteB), "invitation B works");
-			// With no one connected through A, its tunnel closes right away.
-			long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+			// The player who joined through A has left, so A's tunnel closes as
+			// soon as the host notices, well before the drain period (6 hours)
+			// ends. Noticing takes seconds; longer on a loaded machine.
+			long t0 = System.nanoTime();
+			long deadline = t0 + TimeUnit.SECONDS.toNanos(90);
 			while (again.status().drainingTunnels() > 0 && System.nanoTime() < deadline) {
 				Thread.sleep(200);
 			}
 			assertEquals(0, again.status().drainingTunnels());
+			System.out.printf("previous tunnel closed %.1fs after rotation%n", (System.nanoTime() - t0) / 1e9);
 			assertEquals(1, discord.messages.size(), "one message, edited in place");
 			again.close();
 		}

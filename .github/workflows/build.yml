@@ -25,7 +25,9 @@ jobs:
 
       - name: Build and test
         # Network tests talk to Tailcat's public relays from two in-JVM helpers.
-        run: ./gradlew build -PnetworkTests
+        # Both ends of each tunnel share this 4-vCPU runner, like two 2-core
+        # machines, so run the helper the way such machines do (JitPolicy).
+        run: ./gradlew build -PnetworkTests -PhelperJit=c1
 
       - name: Check the 26.1-built jar links against every supported version
         run: tools/check-linkage.sh
