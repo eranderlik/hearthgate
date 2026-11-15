@@ -236,6 +236,8 @@ sourceSets {
 tasks.named('compileJava') { dependsOn aotHelper }
 tasks.named('processResources') { dependsOn aotHelper }
 tasks.named('jar') {
+	// A stable module name; the default would derive "core" from the file name.
+	manifest.attributes('Automatic-Module-Name': 'dev.hearthgate.core')
 	dependsOn aotHelper
 	from(aotClasses)
 }

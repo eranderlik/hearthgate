@@ -25,7 +25,7 @@ per-platform [native helper add-on](#native-helper-add-on-optional).
 | | |
 |---|---|
 | Minecraft | 26.1, 26.1.1, 26.1.2, 26.2, 26.3 (one jar for all) |
-| Loader | Fabric Loader ≥ 0.20.1 with Fabric API |
+| Loader | Fabric Loader ≥ 0.20.1 with Fabric API, or NeoForge 26.1 or newer (separate `hearthgate-neoforge` jar) |
 | Java | 25 (what Minecraft 26.x requires) |
 | Side | Client: share a singleplayer world, or join. Dedicated server: always-on hosting with optional Discord announcements. Players always need the mod to join. |
 
@@ -48,7 +48,8 @@ and `/kick` and `/ban` work as usual.
 
 ## Dedicated servers
 
-Install the same jar (plus Fabric API) on a Fabric dedicated server. On
+Install the same jar (plus Fabric API) on a Fabric dedicated server, or the
+`hearthgate-neoforge` jar on a NeoForge one. On
 startup it creates `config/hearthgate-server.json` and starts hosting: the
 server is reachable through Tailcat for as long as it runs, as an alternative
 to opening a port on your router. Players join through **Multiplayer → Join
@@ -201,6 +202,11 @@ as native Go instead:
   management, toasts, *Open to LAN*) are bound by name at startup in
   [`Compat`](common/src/client/java/dev/hearthgate/common/client/Compat.java). That
   works because Minecraft 26.x ships unobfuscated.
+* **`neoforge/`** is the NeoForge adapter, built like `fabric/` (it compiles
+  `common`'s sources into its own jar; `core` and Chicory are nested with
+  JarJar). `./gradlew :neoforge:runServer` and `:neoforge:runClient` start
+  dev instances, and `tools/server-smoke.sh :neoforge:runServer
+  neoforge/run/server` checks a headless server end to end.
 * **`fabric/`** is the Fabric adapter: the entrypoints, the event wiring and
   the `Platform` implementation. It compiles `common`'s sources into its own
   jar, so the mod is a single file.
@@ -264,7 +270,7 @@ download it) and **git** on `PATH`. Gradle provisions JDK 25 itself, both for
 the build and for its own daemon, so no JDK needs to be installed.
 
 ```sh
-./gradlew build           # mod jar: fabric/build/libs/hearthgate-fabric-<version>.jar
+./gradlew build           # mod jars: fabric/build/libs/hearthgate-fabric-<version>.jar and neoforge/build/libs/hearthgate-neoforge-<version>.jar
 ./gradlew :fabric:nativeAddonJar  # native add-on for this machine's platform (needs a C compiler for cgo)
 ```
 
@@ -342,7 +348,8 @@ logs.
 
 Add `fabric_api_<version>=…` to `gradle.properties`, widen `minecraft` in
 `fabric.mod.json`, then run the game test with `-Pmc=<version>` and
-`tools/check-linkage.sh`. If an API the mod uses has changed, add the
+`tools/check-linkage.sh`. For NeoForge, add `neoforge_<version>=…` too and
+run `tools/check-linkage-neoforge.sh`. If an API the mod uses has changed, add the
 alternative to `Compat`.
 
 ## Licensing and naming

@@ -2,7 +2,7 @@
 // default; pass -Pmc=<version> to compile or run against another one, e.g.
 //   ./gradlew :fabric:runClient -Pmc=26.3
 plugins {
-	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'net.fabricmc.fabric-loom'
 }
 
 evaluationDependsOn(':core')
@@ -133,12 +133,42 @@ def addonModJson = tasks.register('nativeAddonModJson') {
 	}
 }
 
+// NeoForge reads the same jar through META-INF/neoforge.mods.toml (code-free;
+// the language loader defaults to javafml).
+def addonNeoForgeToml = tasks.register('nativeAddonNeoForgeToml') {
+	def props = [id: addonModId, platform: nativePlatform, version: project.version.toString()]
+	inputs.properties(props)
+	def out = layout.buildDirectory.dir("generated/native-addon-neoforge/${nativePlatform}")
+	outputs.dir(out)
+	doLast {
+		def f = out.get().file('META-INF/neoforge.mods.toml').asFile
+		f.parentFile.mkdirs()
+		f.text = '''license = "BSD-3-Clause"
+
+[[mods]]
+modId = "''' + props.id + '''"
+version = "''' + props.version + '''"
+displayName = "Hearthgate: native helper (''' + props.platform + ''')"
+authors = "Hearthgate contributors"
+description = \'\'\'Optional add-on for dedicated servers on ''' + props.platform + ''': runs Tailcat's networking as native code instead of WebAssembly. Requires Hearthgate ''' + props.version + '''.\'\'\'
+
+[[dependencies."''' + props.id + '''"]]
+modId = "hearthgate"
+type = "required"
+versionRange = "[''' + props.version + ''']"
+ordering = "NONE"
+side = "BOTH"
+'''
+	}
+}
+
 def nativeAddonJar = tasks.register('nativeAddonJar', Jar) {
 	description = "Packages the native helper add-on for ${nativePlatform}."
 	group = 'build'
 	archiveBaseName = "hearthgate-native-${nativePlatform}"
 	destinationDirectory = layout.buildDirectory.dir('libs')
 	from(addonModJson)
+	from(addonNeoForgeToml)
 	from(core.tasks.named('buildHelperNative')) {
 		into "natives/hearthgate/${nativePlatform}"
 	}

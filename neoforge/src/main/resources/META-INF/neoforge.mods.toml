@@ -1,0 +1,27 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "BSD-3-Clause"
+issueTrackerURL = "https://github.com/eranderlik/hearthgate/issues"
+
+[[mods]]
+modId = "hearthgate"
+version = "${version}"
+displayName = "Hearthgate"
+displayURL = "https://github.com/eranderlik/hearthgate"
+iconFile = "assets/hearthgate/icon.png"
+authors = "Hearthgate contributors"
+description = '''Play with friends on other networks with no port forwarding, accounts, or extra software: share a singleplayer world, or keep a dedicated server reachable (with Discord announcements). Peer-to-peer WireGuard tunnels built on Tailscale's open-source Tailcat library, running entirely inside the game. An independent project, not affiliated with or endorsed by Tailscale Inc.'''
+
+[[dependencies.hearthgate]]
+modId = "neoforge"
+type = "required"
+versionRange = "[26.1.0,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.hearthgate]]
+modId = "minecraft"
+type = "required"
+versionRange = "[26.1,26.4)"
+ordering = "NONE"
+side = "BOTH"

@@ -7,7 +7,7 @@
 // `main` (also runs on dedicated servers) must not reference client-only
 // classes; `client` may use both.
 plugins {
-	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+	id 'net.fabricmc.fabric-loom'
 }
 
 evaluationDependsOn(':core')

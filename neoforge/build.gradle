@@ -1,0 +1,126 @@
+// The NeoForge mod. Compiled against the oldest supported Minecraft version
+// by default; pass -Pmc=<version> to compile or run against another one, e.g.
+//   ./gradlew :neoforge:runServer -Pmc=26.3
+plugins {
+	id 'java-library'
+	id 'net.neoforged.moddev'
+}
+
+evaluationDependsOn(':core')
+
+def mc = providers.gradleProperty('mc').getOrElse(minecraft_version)
+def neoVersion = providers.gradleProperty("neoforge_${mc}").getOrNull()
+if (neoVersion == null) {
+	throw new GradleException("Unsupported Minecraft version ${mc}; add neoforge_${mc} to gradle.properties")
+}
+
+version = "${mod_version}"
+group = maven_group
+base {
+	archivesName = 'hearthgate-neoforge'
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+// The loader-independent code (:common) is compiled straight into this mod's
+// source set, so its classes and resources end up in the mod jar. NeoForge has
+// no split client/server source sets, so both of common's are added (the
+// client/server split is enforced when :common itself compiles).
+sourceSets {
+	main {
+		java.srcDir project(':common').file('src/main/java')
+		java.srcDir project(':common').file('src/client/java')
+		resources.srcDir project(':common').file('src/main/resources')
+		resources.srcDir project(':common').file('src/client/resources')
+	}
+}
+
+neoForge {
+	version = neoVersion
+
+	runs {
+		client {
+			client()
+			gameDirectory = file('run/client')
+		}
+		server {
+			server()
+			programArgument '--nogui'
+			gameDirectory = file('run/server')
+		}
+	}
+
+	mods {
+		// With -PprebuiltJar=<jar>, the run loads that jar from its mods folder
+		// instead of this project's classes: for checking that the jar built
+		// against the oldest version runs on a newer one (-Pmc=<newer>).
+		if (!providers.gradleProperty('prebuiltJar').isPresent()) {
+			hearthgate {
+				sourceSet sourceSets.main
+			}
+		}
+	}
+}
+
+tasks.matching { it.name in ['runServer', 'runClient'] }.configureEach { t ->
+	def prebuilt = providers.gradleProperty('prebuiltJar')
+	def runDir = t.name == 'runServer' ? file('run/server') : file('run/client')
+	t.doFirst {
+		def mods = new File(runDir, 'mods')
+		mods.mkdirs()
+		mods.listFiles().findAll { it.name.startsWith('hearthgate-neoforge-') }.each { it.delete() }
+		if (prebuilt.isPresent()) {
+			def src = new File(prebuilt.get())
+			java.nio.file.Files.copy(src.toPath(), new File(mods, src.name).toPath())
+		}
+	}
+}
+
+dependencies {
+	implementation project(':core')
+	implementation "com.dylibso.chicory:runtime:${chicory_version}"
+	implementation "com.dylibso.chicory:wasm:${chicory_version}"
+	// Nested in the mod jar (JarJar).
+	jarJar project(':core')
+	jarJar "com.dylibso.chicory:runtime:${chicory_version}"
+	jarJar "com.dylibso.chicory:wasm:${chicory_version}"
+}
+
+processResources {
+	def props = [version: project.version]
+	inputs.properties(props)
+	filesMatching('META-INF/neoforge.mods.toml') {
+		expand props
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 25
+	options.encoding = 'UTF-8'
+}
+
+jar {
+	from(rootProject.file('LICENSE')) {
+		rename { "LICENSE_hearthgate" }
+	}
+	from(rootProject.file('THIRD_PARTY_NOTICES.md'))
+}
+
+// The Minecraft and NeoForge jars the mod compiles against, one path per
+// line, for tools/check-linkage.sh.
+tasks.register('printLinkJars') {
+	description = 'Prints the Minecraft/NeoForge jars on the compile classpath of the selected version.'
+	dependsOn 'createMinecraftArtifacts'
+	def jars = sourceSets.main.compileClasspath
+	doLast {
+		jars.files.findAll { it.name.endsWith('.jar') }.each { println it.absolutePath }
+	}
+}

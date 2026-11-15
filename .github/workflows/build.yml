@@ -35,7 +35,9 @@ jobs:
       - uses: actions/upload-artifact@v5
         with:
           name: hearthgate
-          path: fabric/build/libs/*.jar
+          path: |
+            fabric/build/libs/*.jar
+            neoforge/build/libs/*.jar
 
   # The optional native helper add-on for dedicated servers, built on a runner
   # of each platform so that no cross-compilers are needed. Linux builds on
@@ -124,3 +126,39 @@ jobs:
         with:
           name: screenshots-${{ matrix.mc }}${{ matrix.native && '-native' || '' }}
           path: fabric/build/run/clientGameTest/screenshots/
+
+  # The NeoForge jar is built against the oldest version; each run builds it
+  # once, then starts a dedicated server of every supported version with that
+  # jar in its mods folder and checks that Hearthgate comes up and hands out an
+  # invitation (tools/server-smoke.sh).
+  neoforge:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ["26.1", "26.1.1", "26.1.2", "26.2", "26.3"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: helper/go.mod
+          cache-dependency-path: helper/go.sum
+      - uses: gradle/actions/setup-gradle@v5
+      - run: ./gradlew :neoforge:jar
+      - run: cp neoforge/build/libs/hearthgate-neoforge-*.jar "$RUNNER_TEMP/hearthgate-neoforge-built.jar"
+      - name: Dedicated server smoke test on Minecraft ${{ matrix.mc }}
+        run: tools/server-smoke.sh :neoforge:runServer neoforge/run/server -Pmc=${{ matrix.mc }} -PprebuiltJar="$RUNNER_TEMP/hearthgate-neoforge-built.jar"
+      - name: Check the 26.1-built jar links against every supported NeoForge
+        if: matrix.mc == '26.1'
+        run: tools/check-linkage-neoforge.sh
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: neoforge-smoke-${{ matrix.mc }}
+          path: neoforge/run/server/smoke.log
