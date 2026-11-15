@@ -1,4 +1,4 @@
-package dev.hearthgate.fabric;
+package dev.hearthgate.common.client;
 
 import dev.hearthgate.core.HelperEvent;
 import net.minecraft.ChatFormatting;
@@ -40,7 +40,7 @@ public final class ShareScreen extends Screen {
 		peers = addRenderableWidget(Ui.centered(Component.empty(), font, width, top + 62));
 
 		copy = addRenderableWidget(Button.builder(Component.translatable("hearthgate.share.copy"), b -> {
-			Sessions.Status s = HearthgateClient.sessions().status();
+			Sessions.Status s = HearthgateClientCommon.sessions().status();
 			if (s != null && s.invite() != null) {
 				minecraft.keyboardHandler.setClipboard(s.invite());
 				b.setMessage(Component.translatable("hearthgate.share.copied"));
@@ -48,7 +48,7 @@ public final class ShareScreen extends Screen {
 		}).bounds(cx - 155, top + 88, 150, 20).build());
 		copy.setTooltip(Tooltip.create(Component.translatable("hearthgate.share.copy_tooltip")));
 		addRenderableWidget(Button.builder(Component.translatable("hearthgate.share.stop"), b -> {
-			HearthgateClient.sessions().stop();
+			HearthgateClientCommon.sessions().stop();
 			onClose();
 		}).bounds(cx + 5, top + 88, 150, 20).build());
 		addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onClose())
@@ -60,7 +60,7 @@ public final class ShareScreen extends Screen {
 		shownPeers = -1;
 		if (!requested) {
 			requested = true;
-			HearthgateClient.sessions().share().whenComplete((value, err) -> minecraft.execute(() -> {
+			HearthgateClientCommon.sessions().share().whenComplete((value, err) -> minecraft.execute(() -> {
 				if (err != null) {
 					error = ErrorMessages.rootMessage(err);
 				}
@@ -75,7 +75,7 @@ public final class ShareScreen extends Screen {
 	}
 
 	private void refresh() {
-		Sessions.Status s = HearthgateClient.sessions().status();
+		Sessions.Status s = HearthgateClientCommon.sessions().status();
 		boolean ready = s != null && s.mode() == Sessions.Mode.HOST && s.ready();
 		copy.active = ready;
 		if (error != null) {

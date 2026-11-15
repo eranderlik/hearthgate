@@ -1,4 +1,4 @@
-package dev.hearthgate.fabric.server;
+package dev.hearthgate.common.server;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.context.CommandContext;
@@ -33,7 +33,7 @@ final class HearthgateCommand {
 	}
 
 	private static PersistentHost host(CommandContext<CommandSourceStack> ctx) {
-		PersistentHost h = HearthgateServer.host();
+		PersistentHost h = HearthgateServerCommon.host();
 		if (h == null) {
 			ctx.getSource().sendFailure(Component.literal(
 					"Hearthgate isn't running on this server (see hearthgate-server.json and the log)."));

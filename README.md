@@ -189,14 +189,21 @@ as native Go instead:
 * **`core/…/server/`** holds the dedicated-server logic, independent of the
   mod loader: identity persistence, supervision, rotation, and the Discord
   webhook client.
-* **`fabric/`** is the mod. `src/client` has two screens, two buttons, and
-  session management; `src/main` has the dedicated-server entrypoint and
-  `/hearthgate` command (Loom's split source sets keep the server side from
-  touching client classes).
+* **`common/`** holds all the Minecraft-facing code that doesn't depend on a
+  mod loader, compiled against vanilla Minecraft. `src/client` has two
+  screens, two buttons, and session management; `src/main` has the
+  dedicated-server logic, the `/hearthgate` command, the language file and
+  icon (Loom's split source sets keep the server side from touching client
+  classes). It reaches the loader through a small `Platform` interface
+  (config/game directories, whether a mod is loaded) and is driven by plain
+  method calls from the loader's events.
   It is compiled against 26.1. The few APIs that changed by 26.3 (screen
   management, toasts, *Open to LAN*) are bound by name at startup in
-  [`Compat`](fabric/src/main/java/dev/hearthgate/fabric/Compat.java). That
+  [`Compat`](common/src/client/java/dev/hearthgate/common/client/Compat.java). That
   works because Minecraft 26.x ships unobfuscated.
+* **`fabric/`** is the Fabric adapter: the entrypoints, the event wiring and
+  the `Platform` implementation. It compiles `common`'s sources into its own
+  jar, so the mod is a single file.
 
 ### Performance
 

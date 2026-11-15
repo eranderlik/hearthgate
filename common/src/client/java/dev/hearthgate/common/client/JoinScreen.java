@@ -1,4 +1,4 @@
-package dev.hearthgate.fabric;
+package dev.hearthgate.common.client;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Button;
@@ -84,7 +84,7 @@ public final class JoinScreen extends Screen {
 		connect.active = false;
 		input.setEditable(false);
 		setStatus(Component.translatable("hearthgate.starting"));
-		HearthgateClient.sessions().join(parent, text).whenComplete((ignored, err) -> {
+		HearthgateClientCommon.sessions().join(parent, text).whenComplete((ignored, err) -> {
 			if (err != null) {
 				minecraft.execute(() -> {
 					connecting = false;
@@ -100,7 +100,7 @@ public final class JoinScreen extends Screen {
 	@Override
 	public void onClose() {
 		if (connecting) {
-			HearthgateClient.sessions().stop();
+			HearthgateClientCommon.sessions().stop();
 		}
 		Compat.setScreen(minecraft, parent);
 	}

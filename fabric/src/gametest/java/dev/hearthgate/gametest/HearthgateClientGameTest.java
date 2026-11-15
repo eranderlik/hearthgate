@@ -3,10 +3,10 @@ package dev.hearthgate.gametest;
 import dev.hearthgate.core.HelperEvent;
 import dev.hearthgate.core.HelperSession;
 import dev.hearthgate.core.host.NetworkPolicy;
-import dev.hearthgate.fabric.JoinScreen;
-import dev.hearthgate.fabric.Sessions;
-import dev.hearthgate.fabric.ShareScreen;
-import dev.hearthgate.fabric.HearthgateClient;
+import dev.hearthgate.common.client.JoinScreen;
+import dev.hearthgate.common.client.Sessions;
+import dev.hearthgate.common.client.ShareScreen;
+import dev.hearthgate.common.client.HearthgateClientCommon;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
@@ -50,10 +50,10 @@ public final class HearthgateClientGameTest implements FabricClientGameTest {
 			ctx.waitForScreen(ShareScreen.class);
 
 			ctx.waitFor(mc -> {
-				Sessions.Status s = HearthgateClient.sessions().status();
+				Sessions.Status s = HearthgateClientCommon.sessions().status();
 				return s != null && s.ready();
 			}, 60 * TICKS_PER_SECOND);
-			String invite = ctx.computeOnClient(mc -> HearthgateClient.sessions().status().invite());
+			String invite = ctx.computeOnClient(mc -> HearthgateClientCommon.sessions().status().invite());
 			ctx.takeScreenshot("hearthgate-2-sharing");
 
 			String status = pingThroughTunnel(invite);
@@ -63,12 +63,12 @@ public final class HearthgateClientGameTest implements FabricClientGameTest {
 			}
 			log("server list ping through the tunnel OK: " + status);
 
-			ctx.waitFor(mc -> !HearthgateClient.sessions().status().peers().isEmpty(), 30 * TICKS_PER_SECOND);
+			ctx.waitFor(mc -> !HearthgateClientCommon.sessions().status().peers().isEmpty(), 30 * TICKS_PER_SECOND);
 			ctx.waitTicks(TICKS_PER_SECOND);
 			ctx.takeScreenshot("hearthgate-3-peer-connected");
 
 			ctx.clickScreenButton("hearthgate.share.stop");
-			ctx.waitFor(mc -> HearthgateClient.sessions().status() == null, 10 * TICKS_PER_SECOND);
+			ctx.waitFor(mc -> HearthgateClientCommon.sessions().status() == null, 10 * TICKS_PER_SECOND);
 		}
 
 		ctx.setScreen(() -> new JoinMultiplayerScreen(new TitleScreen()));

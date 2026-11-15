@@ -42,6 +42,20 @@ loom {
 	}
 }
 
+// The loader-independent code (:common) is compiled straight into this mod's
+// source sets, so its classes and resources end up in the mod jar and Loom's
+// split-environment check covers them too.
+sourceSets {
+	main {
+		java.srcDir project(':common').file('src/main/java')
+		resources.srcDir project(':common').file('src/main/resources')
+	}
+	client {
+		java.srcDir project(':common').file('src/client/java')
+		resources.srcDir project(':common').file('src/client/resources')
+	}
+}
+
 fabricApi {
 	configureTests {
 		createSourceSet = true

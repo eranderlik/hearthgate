@@ -1,0 +1,37 @@
+// Loader-independent Minecraft code, compiled against vanilla Minecraft only
+// (the oldest supported version, 26.1). Loader modules do not depend on this
+// project's jar: they compile its source sets into their own mod jar, see
+// fabric/build.gradle.
+//
+// Loom's split source sets make the compiler enforce the environment split:
+// `main` (also runs on dedicated servers) must not reference client-only
+// classes; `client` may use both.
+plugins {
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+evaluationDependsOn(':core')
+
+base {
+	archivesName = 'hearthgate-common'
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+loom {
+	splitEnvironmentSourceSets()
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${minecraft_version}"
+	implementation project(':core')
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 25
+	options.encoding = 'UTF-8'
+}

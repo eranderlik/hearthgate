@@ -13,8 +13,8 @@
 	"icon": "assets/hearthgate/icon.png",
 	"environment": "*",
 	"entrypoints": {
-		"client": ["dev.hearthgate.fabric.HearthgateClient"],
-		"server": ["dev.hearthgate.fabric.server.HearthgateServer"]
+		"client": ["dev.hearthgate.fabric.HearthgateFabricClient"],
+		"server": ["dev.hearthgate.fabric.HearthgateFabricServer"]
 	},
 	"depends": {
 		"fabricloader": ">=0.20.1",

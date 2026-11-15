@@ -1,8 +1,8 @@
 package dev.hearthgate.gametest;
 
 import dev.hearthgate.core.server.PersistentHost;
-import dev.hearthgate.fabric.JoinScreen;
-import dev.hearthgate.fabric.server.HearthgateServer;
+import dev.hearthgate.common.client.JoinScreen;
+import dev.hearthgate.common.server.HearthgateServerCommon;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestDedicatedServerContext;
@@ -24,17 +24,17 @@ public final class HearthgateServerGameTest implements FabricClientGameTest {
 	public void runTest(ClientGameTestContext ctx) {
 		// The game test JVM is a client, so the loader doesn't run "server"
 		// entrypoints; initialize ours by hand. It acts only on dedicated servers.
-		new HearthgateServer().onInitializeServer();
+		new dev.hearthgate.fabric.HearthgateFabricServer().onInitializeServer();
 
 		Properties props = new Properties();
 		props.setProperty("online-mode", "false"); // the dev client has no real account
 		try (TestDedicatedServerContext server = ctx.worldBuilder().createServer(props)) {
 			ctx.waitFor(mc -> {
-				PersistentHost h = HearthgateServer.host();
+				PersistentHost h = HearthgateServerCommon.host();
 				return h != null && h.status().invite() != null;
 			}, 90 * TPS);
-			String invite = HearthgateServer.host().status().invite();
-			String engine = HearthgateServer.host().status().engine();
+			String invite = HearthgateServerCommon.host().status().invite();
+			String engine = HearthgateServerCommon.host().status().engine();
 			System.out.println("[hearthgate-gametest] dedicated server invitation ready; helper: " + engine);
 			// With -PgametestNative the native add-on is installed and must be used.
 			String expected = Boolean.getBoolean("hearthgate.test.expectNative") ? "native" : "WebAssembly";
@@ -47,7 +47,7 @@ public final class HearthgateServerGameTest implements FabricClientGameTest {
 			ctx.clickScreenButton("hearthgate.button.join");
 			ctx.waitForScreen(JoinScreen.class);
 			ctx.runOnClient(mc -> {
-				for (var child : dev.hearthgate.fabric.Compat.screen(mc).children()) {
+				for (var child : dev.hearthgate.common.client.Compat.screen(mc).children()) {
 					if (child instanceof EditBox box) {
 						box.setValue(invite);
 					}
@@ -70,7 +70,7 @@ public final class HearthgateServerGameTest implements FabricClientGameTest {
 			// Leaving the server ends the client's join tunnel.
 			ctx.runOnClient(mc -> mc.disconnectFromWorld(net.minecraft.network.chat.Component.literal("test done")));
 			ctx.waitFor(mc -> mc.level == null, 30 * TPS);
-			ctx.waitFor(mc -> dev.hearthgate.fabric.HearthgateClient.sessions().status() == null, 10 * TPS);
+			ctx.waitFor(mc -> dev.hearthgate.common.client.HearthgateClientCommon.sessions().status() == null, 10 * TPS);
 		}
 		ctx.setScreen(TitleScreen::new);
 	}

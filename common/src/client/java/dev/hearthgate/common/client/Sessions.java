@@ -1,9 +1,9 @@
-package dev.hearthgate.fabric;
+package dev.hearthgate.common.client;
 
+import dev.hearthgate.common.Platform;
 import dev.hearthgate.core.HelperEvent;
 import dev.hearthgate.core.HelperSession;
 import dev.hearthgate.core.host.NetworkPolicy;
-import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.toasts.SystemToast;
@@ -126,7 +126,7 @@ public final class Sessions {
 		Session s = new Session(Mode.HOST);
 		maybeDevelopmentOfflineAuth(s, server);
 		List<String> args = new ArrayList<>(List.of("host", "--target", "127.0.0.1:" + port, "--mc", gameVersion()));
-		if (HearthgateClient.verbose()) {
+		if (HearthgateClientCommon.verbose()) {
 			args.add("--verbose");
 		}
 		return begin(s, args, NetworkPolicy.forHost(port)).thenApply(HelperEvent::invite);
@@ -136,7 +136,7 @@ public final class Sessions {
 	public CompletableFuture<Void> join(Screen parent, String invite) {
 		stop();
 		List<String> args = new ArrayList<>(List.of("join", "--invite", invite.trim()));
-		if (HearthgateClient.verbose()) {
+		if (HearthgateClientCommon.verbose()) {
 			args.add("--verbose");
 		}
 		Session s = new Session(Mode.JOIN);
@@ -270,7 +270,7 @@ public final class Sessions {
 	 * can be tested with one Minecraft account. Never active in production.
 	 */
 	private static void maybeDevelopmentOfflineAuth(Session s, IntegratedServer server) {
-		if (FabricLoader.getInstance().isDevelopmentEnvironment()
+		if (Platform.get().isDevelopmentEnvironment()
 				&& "1".equals(System.getenv("HEARTHGATE_DEV_OFFLINE_AUTH"))) {
 			s.offlineAuthServer = server;
 			s.previousAuth = server.usesAuthentication();

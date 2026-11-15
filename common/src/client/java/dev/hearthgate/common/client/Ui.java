@@ -1,4 +1,4 @@
-package dev.hearthgate.fabric;
+package dev.hearthgate.common.client;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.components.MultiLineTextWidget;

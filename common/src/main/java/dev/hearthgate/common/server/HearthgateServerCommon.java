@@ -1,17 +1,15 @@
-package dev.hearthgate.fabric.server;
+package dev.hearthgate.common.server;
 
+import com.mojang.brigadier.CommandDispatcher;
+import dev.hearthgate.common.Platform;
 import dev.hearthgate.core.HelperBackend;
 import dev.hearthgate.core.HelperSession;
 import dev.hearthgate.core.nativehelper.NativeHelpers;
 import dev.hearthgate.core.nativehelper.NativePlatform;
 import dev.hearthgate.core.server.PersistentHost;
 import dev.hearthgate.core.server.ServerConfig;
-import net.fabricmc.api.DedicatedServerModInitializer;
-import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
 import net.minecraft.SharedConstants;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,15 +19,21 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Dedicated server support: keeps the server reachable through Tailcat for as
- * long as it runs, with a persistent invitation, as an alternative to port
- * forwarding. Configured by {@code config/hearthgate-server.json}.
+ * Dedicated server support, independent of the mod loader: keeps the server
+ * reachable through Tailcat for as long as it runs, with a persistent
+ * invitation, as an alternative to port forwarding. Configured by
+ * {@code config/hearthgate-server.json}.
+ *
+ * <p>The loader module calls, after {@link Platform#set}: {@link #init} from
+ * the server mod initializer, {@link #registerCommands} from its
+ * command-registration event, {@link #onServerStarted} once the server has
+ * started and {@link #onServerStopping} when it begins to stop.
+ * {@link #onServerStarted} ignores integrated servers.
  */
-public final class HearthgateServer implements DedicatedServerModInitializer {
+public final class HearthgateServerCommon {
 	static final Logger LOG = LoggerFactory.getLogger("hearthgate");
 	private static volatile PersistentHost host;
 	/** Completes once the helper to use has been chosen (see {@link #chooseBackend}). */
@@ -41,25 +45,36 @@ public final class HearthgateServer implements DedicatedServerModInitializer {
 		return host;
 	}
 
-	@Override
-	public void onInitializeServer() {
-		Path configDir = FabricLoader.getInstance().getConfigDir();
-		CommandRegistrationCallback.EVENT.register((dispatcher, registry, env) -> HearthgateCommand.register(dispatcher));
-		ServerLifecycleEvents.SERVER_STARTED.register(server -> start(server, configDir));
-		ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-			PersistentHost h = host;
-			host = null;
-			if (h != null) {
-				h.close();
-			}
-		});
-		// Pick the helper, and get it ready while the world loads.
+	private HearthgateServerCommon() {}
+
+	/** Registers {@code /hearthgate}. */
+	public static void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher) {
+		HearthgateCommand.register(dispatcher);
+	}
+
+	/** The server has started; starts sharing it if it is a dedicated server and the config allows. */
+	public static void onServerStarted(MinecraftServer server) {
+		start(server, Platform.get().configDir());
+	}
+
+	/** The server is stopping; closes the tunnel. */
+	public static void onServerStopping(MinecraftServer server) {
+		PersistentHost h = host;
+		host = null;
+		if (h != null) {
+			h.close();
+		}
+	}
+
+	/** Picks the helper, and gets it ready while the world loads. */
+	public static void init() {
+		Path configDir = Platform.get().configDir();
 		CompletableFuture<HelperBackend> chosen = new CompletableFuture<>();
 		backend = chosen;
 		Thread t = new Thread(() -> {
 			HelperBackend b = HelperBackend.WASM;
 			try {
-				b = chooseBackend(configDir, FabricLoader.getInstance().getGameDir());
+				b = chooseBackend(configDir, Platform.get().gameDir());
 			} finally {
 				chosen.complete(b);
 			}
@@ -93,12 +108,11 @@ public final class HearthgateServer implements DedicatedServerModInitializer {
 				library = Path.of(override);
 				LOG.info("Hearthgate: using native helper library {}", library);
 			} else {
-				Optional<ModContainer> addon = FabricLoader.getInstance()
-						.getModContainer(NativePlatform.addonModId(platform));
-				if (addon.isEmpty()) {
+				String addonId = NativePlatform.addonModId(platform);
+				if (!Platform.get().isModLoaded(addonId)) {
 					for (String other : NativePlatform.SUPPORTED) {
 						if (!other.equals(platform)
-								&& FabricLoader.getInstance().isModLoaded(NativePlatform.addonModId(other))) {
+								&& Platform.get().isModLoaded(NativePlatform.addonModId(other))) {
 							LOG.warn("Hearthgate: the native helper add-on installed is for {}, but this server runs on {}",
 									other, platform);
 						}
@@ -110,7 +124,7 @@ public final class HearthgateServer implements DedicatedServerModInitializer {
 					return HelperBackend.WASM;
 				}
 				String inJar = "natives/hearthgate/" + platform + "/" + NativePlatform.libraryName(platform);
-				Path source = addon.get().findPath(inJar)
+				Path source = Platform.get().findModPath(addonId, inJar)
 						.orElseThrow(() -> new IOException("the add-on lacks " + inJar));
 				library = NativeHelpers.extract(source, gameDir.resolve(".hearthgate").resolve("natives"));
 			}
