@@ -7,3 +7,6 @@ run-*/
 .vscode/
 helper/vendor/
 helper/build/
+
+# Claude Code agent worktrees
+.claude/worktrees/
