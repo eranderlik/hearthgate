@@ -38,6 +38,8 @@ jobs:
           path: |
             fabric/build/libs/*.jar
             neoforge/build/libs/*.jar
+            forge/build/libs/*.jar
+            !forge/build/libs/*-slim.jar
 
   # The optional native helper add-on for dedicated servers, built on a runner
   # of each platform so that no cross-compilers are needed. Linux builds on
@@ -162,3 +164,62 @@ jobs:
         with:
           name: neoforge-smoke-${{ matrix.mc }}
           path: neoforge/run/server/smoke.log
+
+  # The Forge jar is built against the oldest version, like NeoForge's, and
+  # smoke-tested the same way on every supported version.
+  forge:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ["26.1", "26.1.1", "26.1.2", "26.2", "26.3"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: helper/go.mod
+          cache-dependency-path: helper/go.sum
+      - uses: gradle/actions/setup-gradle@v5
+      - run: ./gradlew :forge:jarJar
+      - run: cp forge/build/libs/hearthgate-forge-[0-9]*[0-9].jar "$RUNNER_TEMP/hearthgate-forge-built.jar"
+      - name: Dedicated server smoke test on Minecraft ${{ matrix.mc }}
+        run: tools/server-smoke.sh :forge:runServer forge/run/server -Pmc=${{ matrix.mc }} -PprebuiltJar="$RUNNER_TEMP/hearthgate-forge-built.jar"
+      - name: Check the 26.1-built jar links against every supported Forge
+        if: matrix.mc == '26.1'
+        run: tools/check-linkage-forge.sh
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: forge-smoke-${{ matrix.mc }}
+          path: forge/run/server/smoke.log
+
+  # Quilt runs the Fabric jar with the regular Fabric API (Quilt Loader
+  # provides the fabricloader the jar asks for).
+  quilt:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        mc: ["26.1", "26.3"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: helper/go.mod
+          cache-dependency-path: helper/go.sum
+      - uses: gradle/actions/setup-gradle@v5
+      - run: ./gradlew :fabric:jar
+      - name: Quilt dedicated server smoke test on Minecraft ${{ matrix.mc }}
+        run: tools/quilt-smoke.sh ${{ matrix.mc }}

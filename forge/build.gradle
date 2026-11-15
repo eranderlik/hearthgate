@@ -1,0 +1,146 @@
+// The Minecraft Forge mod. Compiled against the oldest supported Minecraft
+// version by default; pass -Pmc=<version> to compile or run against another
+// one, e.g.
+//   ./gradlew :forge:runServer -Pmc=26.3
+plugins {
+	id 'java'
+	id 'net.minecraftforge.gradle'
+	id 'net.minecraftforge.jarjar'
+}
+
+evaluationDependsOn(':core')
+
+def mc = providers.gradleProperty('mc').getOrElse(minecraft_version)
+def forgeVersion = providers.gradleProperty("forge_${mc}").getOrNull()
+if (forgeVersion == null) {
+	throw new GradleException("Unsupported Minecraft version ${mc}; add forge_${mc} to gradle.properties")
+}
+
+version = "${mod_version}"
+group = maven_group
+base {
+	archivesName = 'hearthgate-forge'
+}
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(25)
+	}
+}
+
+// With -PprebuiltJar=<jar>, the run loads that jar from its mods folder
+// instead of this project's classes: for checking that the jar built against
+// the oldest version runs on a newer one (-Pmc=<newer>). The project then
+// contributes nothing to the run's classpath (the jar nests core and Chicory).
+def prebuilt = providers.gradleProperty('prebuiltJar')
+
+// The loader-independent code (:common) is compiled straight into this mod's
+// source set (as for NeoForge); both of common's source dirs are added.
+sourceSets {
+	main {
+		if (prebuilt.isPresent()) {
+			java.srcDirs = []
+			resources.srcDirs = []
+		} else {
+			java.srcDir project(':common').file('src/main/java')
+			java.srcDir project(':common').file('src/client/java')
+			resources.srcDir project(':common').file('src/main/resources')
+			resources.srcDir project(':common').file('src/client/resources')
+		}
+		// Forge's dev runs treat one directory as the mod, so classes and
+		// resources must end up together.
+		def merged = layout.buildDirectory.dir('sourceSets/main')
+		java.destinationDirectory = merged
+		output.resourcesDir = merged
+	}
+}
+
+minecraft {
+	runs {
+		configureEach {
+			workingDir = layout.projectDirectory.dir("run/${name}")
+		}
+		register('client')
+		register('server') {
+			args '--nogui'
+		}
+	}
+}
+
+repositories {
+	minecraft.mavenizer(it)
+	maven fg.forgeMaven
+	maven fg.minecraftLibsMaven
+	mavenCentral()
+}
+
+dependencies {
+	implementation minecraft.dependency("net.minecraftforge:forge:${forgeVersion}")
+	if (!prebuilt.isPresent()) {
+		implementation project(':core')
+		implementation "com.dylibso.chicory:runtime:${chicory_version}"
+		implementation "com.dylibso.chicory:wasm:${chicory_version}"
+	}
+}
+
+tasks.matching { it.name in ['runServer', 'runClient'] }.configureEach { t ->
+	def runDir = file(t.name == 'runServer' ? 'run/server' : 'run/client')
+	t.doFirst {
+		def mods = new File(runDir, 'mods')
+		mods.mkdirs()
+		mods.listFiles().findAll { it.name.startsWith('hearthgate-forge-') }.each { it.delete() }
+		if (prebuilt.isPresent()) {
+			def src = new File(prebuilt.get())
+			java.nio.file.Files.copy(src.toPath(), new File(mods, src.name).toPath())
+		}
+	}
+}
+
+// Nested in the mod jar (JarJar). The jarJar task builds the final mod jar
+// (the plain jar becomes the "slim" one).
+jarJar.register()
+
+dependencies {
+	jarJar project(':core')
+	jarJar "com.dylibso.chicory:runtime:${chicory_version}"
+	jarJar "com.dylibso.chicory:wasm:${chicory_version}"
+}
+
+processResources {
+	def props = [version: project.version]
+	inputs.properties(props)
+	filesMatching('META-INF/mods.toml') {
+		expand props
+	}
+}
+
+tasks.named('jarJar') {
+	archiveClassifier = ''
+}
+
+tasks.named('jar') {
+	archiveClassifier = 'slim'
+	from(rootProject.file('LICENSE')) {
+		rename { "LICENSE_hearthgate" }
+	}
+	from(rootProject.file('THIRD_PARTY_NOTICES.md'))
+}
+
+tasks.named('assemble') {
+	dependsOn 'jarJar'
+}
+
+tasks.withType(JavaCompile).configureEach {
+	options.release = 25
+	options.encoding = 'UTF-8'
+}
+
+// The Minecraft and Forge jars the mod compiles against, one path per line,
+// for tools/check-linkage-forge.sh.
+tasks.register('printLinkJars') {
+	description = 'Prints the Minecraft/Forge jars on the compile classpath of the selected version.'
+	def jars = sourceSets.main.compileClasspath
+	doLast {
+		jars.files.findAll { it.name.endsWith('.jar') }.each { println it.absolutePath }
+	}
+}

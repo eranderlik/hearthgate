@@ -15,7 +15,7 @@ trap 'rm -rf "$WORK"' EXIT
 (cd "$WORK" && unzip -q "$OLDPWD/$JAR" 'dev/*')
 status=0
 for v in $VERSIONS; do
-	LIST=$(./gradlew -q :fabric:printMinecraftJars -Pmc="$v") # fails the script if Gradle does
+	LIST=$(./gradlew -q :fabric:printMinecraftJars -Pmc="$v" | grep "^/") # other plugins may print build noise (fails the script if Gradle does)
 	mapfile -t JARS <<< "$LIST"
 	(cd "$WORK" && java "$OLDPWD/tools/LinkCheck.java" "$v" "${JARS[@]}") | tee "$WORK/out"
 	grep -q ' 0 missing' "$WORK/out" || status=1

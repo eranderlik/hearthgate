@@ -162,6 +162,37 @@ side = "BOTH"
 	}
 }
 
+// Minecraft Forge reads it through META-INF/mods.toml, with the code-free
+// language loader (lowcodefml) since the add-on has no mod class.
+def addonForgeToml = tasks.register('nativeAddonForgeToml') {
+	def props = [id: addonModId, platform: nativePlatform, version: project.version.toString()]
+	inputs.properties(props)
+	def out = layout.buildDirectory.dir("generated/native-addon-forge/${nativePlatform}")
+	outputs.dir(out)
+	doLast {
+		def f = out.get().file('META-INF/mods.toml').asFile
+		f.parentFile.mkdirs()
+		f.text = '''modLoader = "lowcodefml"
+loaderVersion = "[62,)"
+license = "BSD-3-Clause"
+
+[[mods]]
+modId = "''' + props.id + '''"
+version = "''' + props.version + '''"
+displayName = "Hearthgate: native helper (''' + props.platform + ''')"
+authors = "Hearthgate contributors"
+description = \'\'\'Optional add-on for dedicated servers on ''' + props.platform + ''': runs Tailcat's networking as native code instead of WebAssembly. Requires Hearthgate ''' + props.version + '''.\'\'\'
+
+[[dependencies."''' + props.id + '''"]]
+modId = "hearthgate"
+mandatory = true
+versionRange = "[''' + props.version + ''']"
+ordering = "NONE"
+side = "BOTH"
+'''
+	}
+}
+
 def nativeAddonJar = tasks.register('nativeAddonJar', Jar) {
 	description = "Packages the native helper add-on for ${nativePlatform}."
 	group = 'build'
@@ -169,6 +200,7 @@ def nativeAddonJar = tasks.register('nativeAddonJar', Jar) {
 	destinationDirectory = layout.buildDirectory.dir('libs')
 	from(addonModJson)
 	from(addonNeoForgeToml)
+	from(addonForgeToml)
 	from(core.tasks.named('buildHelperNative')) {
 		into "natives/hearthgate/${nativePlatform}"
 	}

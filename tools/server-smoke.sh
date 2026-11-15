@@ -17,6 +17,8 @@
 #   SMOKE_EXPECT   if set, an extended regex that must also appear in the log
 #                  (e.g. "using the native helper")
 #   SMOKE_LOG      log file (default <run-dir>/smoke.log)
+#   SMOKE_COMMAND  a shell command to run in <run-dir> instead of
+#                  `./gradlew <gradle-run-task>` (tools/quilt-smoke.sh uses this)
 #
 # Needs network access (Tailcat's public relays) and Go on PATH, like the build.
 set -uo pipefail
@@ -49,7 +51,11 @@ rcon.password=smoke
 EOF
 
 WORK=$(mktemp -d)
-./gradlew "$TASK" "$@" < /dev/null > "$LOG" 2>&1 &
+if [ -n "${SMOKE_COMMAND:-}" ]; then
+	(cd "$RUNDIR" && exec bash -c "$SMOKE_COMMAND") < /dev/null > "$LOG" 2>&1 &
+else
+	./gradlew "$TASK" "$@" < /dev/null > "$LOG" 2>&1 &
+fi
 GRADLE=$!
 
 cleanup() {

@@ -25,7 +25,7 @@ per-platform [native helper add-on](#native-helper-add-on-optional).
 | | |
 |---|---|
 | Minecraft | 26.1, 26.1.1, 26.1.2, 26.2, 26.3 (one jar for all) |
-| Loader | Fabric Loader ≥ 0.20.1 with Fabric API, or NeoForge 26.1 or newer (separate `hearthgate-neoforge` jar) |
+| Loader | Fabric Loader ≥ 0.19.5 with Fabric API, Quilt Loader (use the Fabric jar with the regular Fabric API), NeoForge 26.1 or newer (separate `hearthgate-neoforge` jar), or Minecraft Forge 62 or newer (separate `hearthgate-forge` jar) |
 | Java | 25 (what Minecraft 26.x requires) |
 | Side | Client: share a singleplayer world, or join. Dedicated server: always-on hosting with optional Discord announcements. Players always need the mod to join. |
 
@@ -48,8 +48,9 @@ and `/kick` and `/ban` work as usual.
 
 ## Dedicated servers
 
-Install the same jar (plus Fabric API) on a Fabric dedicated server, or the
-`hearthgate-neoforge` jar on a NeoForge one. On
+Install the same jar (plus Fabric API) on a Fabric or Quilt dedicated server,
+the `hearthgate-neoforge` jar on a NeoForge one, or the `hearthgate-forge` jar
+on a Minecraft Forge one. On
 startup it creates `config/hearthgate-server.json` and starts hosting: the
 server is reachable through Tailcat for as long as it runs, as an alternative
 to opening a port on your router. Players join through **Multiplayer → Join
@@ -207,6 +208,22 @@ as native Go instead:
   JarJar). `./gradlew :neoforge:runServer` and `:neoforge:runClient` start
   dev instances, and `tools/server-smoke.sh :neoforge:runServer
   neoforge/run/server` checks a headless server end to end.
+* **`forge/`** is the Minecraft Forge adapter (ForgeGradle 7), built like
+  `neoforge/`: `common`'s sources are compiled into its jar and `core` and
+  Chicory are nested with JarJar. `@Mod` has no side parameter on Forge, so
+  `HearthgateForge` picks the client or dedicated-server glue itself. It
+  registers `DisplayTest.IGNORE_ALL_VERSION`, so Hearthgate never blocks an
+  unmodded client from joining a modded server or the reverse (it adds no
+  network channels or registries). `./gradlew :forge:runServer` and
+  `:forge:runClient` start dev instances; `tools/server-smoke.sh
+  :forge:runServer forge/run/server` checks a headless server, and
+  `tools/check-linkage-forge.sh` checks the 26.1-built jar against every
+  supported Forge. The native add-on jar also carries a `META-INF/mods.toml`
+  (code-free `lowcodefml`) so Forge loads it.
+* **Quilt** needs no jar of its own: Quilt Loader provides the Fabric Loader
+  API, so the `hearthgate-fabric` jar and the regular Fabric API run as is.
+  `tools/quilt-smoke.sh <minecraft-version>` installs a Quilt server in a
+  temporary directory and checks it end to end.
 * **`fabric/`** is the Fabric adapter: the entrypoints, the event wiring and
   the `Platform` implementation. It compiles `common`'s sources into its own
   jar, so the mod is a single file.
@@ -270,7 +287,7 @@ download it) and **git** on `PATH`. Gradle provisions JDK 25 itself, both for
 the build and for its own daemon, so no JDK needs to be installed.
 
 ```sh
-./gradlew build           # mod jars: fabric/build/libs/hearthgate-fabric-<version>.jar and neoforge/build/libs/hearthgate-neoforge-<version>.jar
+./gradlew build           # mod jars: fabric/build/libs/hearthgate-fabric-<version>.jar neoforge/build/libs/hearthgate-neoforge-<version>.jar and forge/build/libs/hearthgate-forge-<version>.jar
 ./gradlew :fabric:nativeAddonJar  # native add-on for this machine's platform (needs a C compiler for cgo)
 ```
 
@@ -349,7 +366,8 @@ logs.
 Add `fabric_api_<version>=…` to `gradle.properties`, widen `minecraft` in
 `fabric.mod.json`, then run the game test with `-Pmc=<version>` and
 `tools/check-linkage.sh`. For NeoForge, add `neoforge_<version>=…` too and
-run `tools/check-linkage-neoforge.sh`. If an API the mod uses has changed, add the
+run `tools/check-linkage-neoforge.sh`. For Forge, add `forge_<version>=…` and
+run `tools/check-linkage-forge.sh`. If an API the mod uses has changed, add the
 alternative to `Compat`.
 
 ## Licensing and naming

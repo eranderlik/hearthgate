@@ -2,6 +2,8 @@ plugins {
 	// Declared once here (not per subproject) so the loader plugins share a classloader.
 	id 'net.fabricmc.fabric-loom' version "${loom_version}" apply false
 	id 'net.neoforged.moddev' version '2.0.148' apply false
+	id 'net.minecraftforge.gradle' version '7.0.40' apply false
+	id 'net.minecraftforge.jarjar' version '0.2.3' apply false
 }
 
 allprojects {
