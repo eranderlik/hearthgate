@@ -44,6 +44,28 @@ class NetworkPolicyTest {
 	}
 
 	@Test
+	void udpGoesToPeersButNotThisMachineOrTheLocalSegment() throws Exception {
+		for (NetworkPolicy p : new NetworkPolicy[] {NetworkPolicy.forJoin(), NetworkPolicy.forHost(41234)}) {
+			// Peer endpoints: public, and private for players on the same network.
+			for (String ok : new String[] {"203.0.113.5", "2001:db8::1", "192.168.1.20", "10.1.2.3", "100.64.0.1",
+					"fd7a:115c:a1e0::1"}) {
+				assertTrue(p.allowUdpSend(ip(ok)), ok);
+			}
+			for (String no : new String[] {"127.0.0.1", "127.1.2.3", "::ffff:127.0.0.1", "::1", "0.0.0.0", "0.1.2.3", "::",
+					"255.255.255.255", "224.0.0.251", "239.255.255.250", "ff02::1", "169.254.169.254", "fe80::1"}) {
+				assertFalse(p.allowUdpSend(ip(no)), no);
+			}
+			assertTrue(p.allowUdpBind(ip("0.0.0.0")));
+			assertTrue(p.allowUdpBind(ip("::")));
+			assertTrue(p.allowUdpBind(ip("127.0.0.1")));
+			assertFalse(p.allowUdpBind(ip("192.168.1.10")));
+		}
+		NetworkPolicy none = NetworkPolicy.none();
+		assertFalse(none.allowUdpBind(ip("0.0.0.0")));
+		assertFalse(none.allowUdpSend(ip("203.0.113.5")));
+	}
+
+	@Test
 	void joinMayListenOnLoopbackOnly() throws Exception {
 		NetworkPolicy p = NetworkPolicy.forJoin();
 		assertTrue(p.allowListen(ip("127.0.0.1")));

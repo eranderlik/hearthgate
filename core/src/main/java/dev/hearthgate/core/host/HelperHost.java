@@ -823,10 +823,17 @@ public final class HelperHost implements AutoCloseable {
 		};
 		InetAddress bindAddr;
 		if (hp[0].isEmpty()) {
-			bindAddr = family == StandardProtocolFamily.INET ? InetAddress.getByName("0.0.0.0")
-					: family == StandardProtocolFamily.INET6 ? InetAddress.getByName("::") : null;
+			bindAddr = family == StandardProtocolFamily.INET ? InetAddress.ofLiteral("0.0.0.0")
+					: family == StandardProtocolFamily.INET6 ? InetAddress.ofLiteral("::") : null;
 		} else {
-			bindAddr = InetAddress.getByName(hp[0]);
+			try {
+				bindAddr = InetAddress.ofLiteral(hp[0]); // an IP address, never a name to resolve
+			} catch (IllegalArgumentException e) {
+				return Errno.EINVAL;
+			}
+		}
+		if (!policy.allowUdpBind(bindAddr == null ? InetAddress.ofLiteral("::") : bindAddr)) {
+			return Errno.EACCES;
 		}
 		DatagramChannel ch = family == null ? DatagramChannel.open() : DatagramChannel.open(family);
 		try {
@@ -868,6 +875,9 @@ public final class HelperHost implements AutoCloseable {
 		InetSocketAddress to = readAddr(m, u32(a[3]));
 		if (to == null) {
 			return Errno.EINVAL;
+		}
+		if (!policy.allowUdpSend(to.getAddress())) {
+			return Errno.EACCES;
 		}
 		int len = u32(a[2]);
 		ByteBuffer data = ByteBuffer.wrap(m.readBytes(u32(a[1]), len));

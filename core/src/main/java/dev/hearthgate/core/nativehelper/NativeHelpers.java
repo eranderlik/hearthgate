@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * and all sessions share it, each as its own set of goroutines.
  */
 public final class NativeHelpers implements HelperBackend {
-	static final int ABI_VERSION = 1;
+	static final int ABI_VERSION = 2;
 	private static final int RECORD_CAPACITY = 16 << 10;
 	private static final int POLL_MS = 1000;
 	private static final AtomicInteger IDS = new AtomicInteger();
@@ -57,6 +57,7 @@ public final class NativeHelpers implements HelperBackend {
 	private final MethodHandle start;
 	private final MethodHandle next;
 	private final MethodHandle stop;
+	private final MethodHandle drain;
 	private final MethodHandle heapBytes;
 
 	private NativeHelpers(String platform, SymbolLookup lib) {
@@ -67,6 +68,7 @@ public final class NativeHelpers implements HelperBackend {
 		next = linker.downcallHandle(find(lib, "hg_next"), FunctionDescriptor.of(ValueLayout.JAVA_INT,
 				ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT));
 		stop = linker.downcallHandle(find(lib, "hg_stop"), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
+		drain = linker.downcallHandle(find(lib, "hg_drain"), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 		heapBytes = linker.downcallHandle(find(lib, "hg_heap_bytes"), FunctionDescriptor.of(ValueLayout.JAVA_LONG));
 	}
 
@@ -299,6 +301,15 @@ public final class NativeHelpers implements HelperBackend {
 		public void stop() {
 			try {
 				stop.invokeExact(handle);
+			} catch (Throwable t) {
+				throw new IllegalStateException(t);
+			}
+		}
+
+		@Override
+		public void drain() {
+			try {
+				drain.invokeExact(handle);
 			} catch (Throwable t) {
 				throw new IllegalStateException(t);
 			}

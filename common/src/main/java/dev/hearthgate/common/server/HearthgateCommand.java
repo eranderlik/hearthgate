@@ -94,7 +94,7 @@ final class HearthgateCommand {
 		h.rotateNow();
 		ctx.getSource().sendSuccess(() -> Component.literal(
 				"Rotating Hearthgate keys. Players already connected stay connected; "
-						+ "the new invitation takes effect in a few seconds"
+						+ "in a few seconds the old invitation stops admitting anyone and the new one takes effect"
 						+ (h.discordEnabled() ? " and will be posted to Discord." : ".")), true);
 		return 1;
 	}

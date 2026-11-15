@@ -15,6 +15,10 @@
 // run. A dedicated server passes a persisted --key and --psk (from keygen)
 // and the --region reported by its first ready event, which makes the
 // invitation stable across restarts until the server rotates its keys.
+//
+// A running host can be told to drain (see [Control]): it keeps proxying the
+// streams it already has but refuses new ones, so a retired invitation stops
+// admitting anyone while the players still using it finish their sessions.
 package app
 
 import (
@@ -49,14 +53,30 @@ const (
 	statusInterval = 2 * time.Second
 )
 
+// Control carries commands from the JVM to a running session. Its methods
+// are safe to call from any goroutine, any number of times.
+type Control struct {
+	once    sync.Once
+	drained chan struct{}
+}
+
+func NewControl() *Control { return &Control{drained: make(chan struct{})} }
+
+// Drain makes a host refuse new streams from now on. Streams already being
+// proxied are unaffected. It has no effect on other commands.
+func (c *Control) Drain() { c.once.Do(func() { close(c.drained) }) }
+
 // Run executes the command in args (without argv[0]) until it finishes or
-// ctx is cancelled, then writes a final "stopped" event. Each event is one
+// ctx is cancelled, then writes a final "stopped" event. ctl may be nil. Each event is one
 // JSON object terminated by a newline, written with a single Write call;
 // diagnostics go to logf.
 //
 // Run recovers panics in the goroutines it owns and never exits the process:
 // in the native library, the process is the Minecraft server.
-func Run(ctx context.Context, events io.Writer, logf func(string, ...any), args []string) {
+func Run(ctx context.Context, events io.Writer, logf func(string, ...any), args []string, ctl *Control) {
+	if ctl == nil {
+		ctl = NewControl()
+	}
 	out := &eventWriter{enc: json.NewEncoder(events), logf: logf}
 	err := func() (err error) {
 		defer func() {
@@ -65,7 +85,7 @@ func Run(ctx context.Context, events io.Writer, logf func(string, ...any), args 
 				logf("panic: %v\n%s", p, debug.Stack())
 			}
 		}()
-		return run(ctx, out, args)
+		return run(ctx, out, args, ctl)
 	}()
 	if err != nil && !errors.Is(err, context.Canceled) {
 		code := "helper_failed"
@@ -139,13 +159,13 @@ func (e *codedError) Unwrap() error { return e.err }
 
 func coded(code string, err error) error { return &codedError{code, err} }
 
-func run(ctx context.Context, out *eventWriter, args []string) error {
+func run(ctx context.Context, out *eventWriter, args []string, ctl *Control) error {
 	if len(args) < 1 {
 		return coded("usage", errors.New("expected host or join command"))
 	}
 	switch args[0] {
 	case "host":
-		return runHost(ctx, out, args[1:])
+		return runHost(ctx, out, args[1:], ctl)
 	case "keygen":
 		return runKeygen(out)
 	case "join":
@@ -155,7 +175,7 @@ func run(ctx context.Context, out *eventWriter, args []string) error {
 	}
 }
 
-func runHost(ctx context.Context, out *eventWriter, args []string) error {
+func runHost(ctx context.Context, out *eventWriter, args []string, ctl *Control) error {
 	fs := flag.NewFlagSet("host", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	target := fs.String("target", "", "loopback address of the integrated Minecraft server")
@@ -220,6 +240,7 @@ func runHost(ctx context.Context, out *eventWriter, args []string) error {
 	sem := make(chan struct{}, maxConnections)
 	var wg sync.WaitGroup
 	defer wg.Wait()
+	loggedDrain := false
 	for {
 		tunnel, err := ln.Accept()
 		if err != nil {
@@ -227,6 +248,18 @@ func runHost(ctx context.Context, out *eventWriter, args []string) error {
 				return ctx.Err()
 			}
 			return fmt.Errorf("accept: %w", err)
+		}
+		select {
+		case <-ctl.drained:
+			// This invitation has been retired: only the streams already
+			// open may continue.
+			if !loggedDrain {
+				out.logf("invitation retired; refusing new connections")
+				loggedDrain = true
+			}
+			tunnel.Close()
+			continue
+		default:
 		}
 		select {
 		case sem <- struct{}{}:

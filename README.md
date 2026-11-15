@@ -2,27 +2,35 @@
 
 ![Hearthgate: a lit pixel-art fireplace](docs/banner.png)
 
-Play your singleplayer world with friends on other networks, or keep a
-dedicated server reachable without port forwarding. No accounts, no VPN app,
-nothing to install but the mod.
+**Play Minecraft with your friends, wherever they are.** No port forwarding,
+no server to rent, no extra apps. Just the mod.
 
-Click **Share with Hearthgate** in the pause menu, send the invitation to a
-friend, and they paste it into **Multiplayer → Join with Hearthgate**. The
-connection is a WireGuard® tunnel that goes peer-to-peer whenever NAT traversal
-succeeds (usually) and falls back to an encrypted relay when it doesn't, using
-Tailscale's open-source [Tailcat](https://github.com/tailscale/tailcat).
+Open your world, press Esc, and click **Share with Hearthgate**. Send the
+invitation it gives you to your friends, and they paste it into
+**Multiplayer → Join with Hearthgate**. That's it: they're in your world.
 
-Hearthgate is an independent project, not affiliated with or endorsed by
-Tailscale. It started from Tailscale's
+* **Nothing to set up.** No router settings, no accounts to create, no VPN to
+  install.
+* **Fast when it can be.** Players connect straight to each other whenever
+  their networks allow it, and through an encrypted relay when they don't.
+* **Private.** Connections are encrypted end to end, and only people holding
+  your invitation can reach your world. Minecraft's own login, `/kick` and
+  `/ban` still apply.
+* **For servers too.** Install it on a dedicated server to keep it reachable
+  around the clock without opening a port, with invitations that stay the same
+  across restarts, change on a schedule, and can be posted to Discord.
+* **One download.** A single file for your mod loader works on Windows, macOS
+  and Linux, and on every supported Minecraft version.
+
+Everyone who joins needs Hearthgate installed too.
+
+Hearthgate is built on Tailscale's open-source
+[Tailcat](https://github.com/tailscale/tailcat) and started from their
 [tailcat-for-minecraft](https://github.com/tailscale/tailcat-for-minecraft)
-demo, which bundled six native Go executables and launched one as a
-subprocess. This mod compiles the Go networking code to WebAssembly and runs it
-**inside the game's JVM**, so it ships one platform-independent jar with no
-native code, no executables to sign, and nothing for antivirus software to
-quarantine. Dedicated servers that need more throughput can add an optional
-per-platform [native helper add-on](#native-helper-add-on-optional).
+demo. It is an independent project, not affiliated with or endorsed by
+Tailscale. [How it works](#how-it-works) has the technical details.
 
-| | |
+| Requirement | Supported |
 |---|---|
 | Minecraft | 26.1, 26.1.1, 26.1.2, 26.2, 26.3 (one jar for all) |
 | Loader | Fabric Loader ≥ 0.19.5 with Fabric API, Quilt Loader (use the Fabric jar with the regular Fabric API), NeoForge 26.1 or newer (separate `hearthgate-neoforge` jar), or Minecraft Forge 62 or newer (separate `hearthgate-forge` jar) |
@@ -35,7 +43,10 @@ per-platform [native helper add-on](#native-helper-add-on-optional).
 **Copy Invitation**, and send it to your friends privately. The share screen
 shows who is connected and whether each connection is direct or relayed.
 Sharing stops when you click **Stop Sharing** or leave the world. A stopped
-invitation can't be used again.
+invitation can't be used again. Sharing doesn't open the world to your local
+network: it listens on this computer only (loopback), for the tunnel. If you
+used vanilla **Open to LAN** before sharing, the world stays open to the LAN
+as well.
 
 **Join:** **Multiplayer → Join with Hearthgate** (top right), paste the
 invitation, and click **Connect**. If the host is on a different Minecraft
@@ -63,7 +74,9 @@ with Hearthgate**, exactly like a shared singleplayer world.
 * **Key rotation.** By default the keys rotate every 7 days, which retires the
   old invitation. Rotation is make-before-break: the new tunnel comes up
   first, and the old one keeps serving the players already connected through
-  it until they leave, or for at most `drain_minutes`.
+  it until they leave, or for at most `drain_minutes`. The old invitation
+  stops admitting new connections as soon as the new one is in effect, so
+  `/hearthgate rotate` locks out a leaked invitation within seconds.
 * **Supervision.** If the helper exits or the relays are unreachable, it
   restarts with backoff (5 s up to 5 min).
 * **Discord.** Set `discord.webhook_url` (Channel settings → Integrations →
@@ -141,6 +154,18 @@ as native Go instead:
   its dependencies.
 
 ## How it works
+
+The connection is a WireGuard® tunnel made with Tailscale's
+[Tailcat](https://github.com/tailscale/tailcat). It goes peer-to-peer whenever
+NAT traversal succeeds (usually) and falls back to an encrypted DERP relay
+when it doesn't.
+
+Tailscale's [tailcat-for-minecraft](https://github.com/tailscale/tailcat-for-minecraft)
+demo bundled six native Go executables and launched one as a subprocess. This
+mod compiles the Go networking code to WebAssembly and runs it **inside the
+game's JVM**, so it ships one platform-independent jar with no native code and
+no executables to sign. Dedicated servers that need more throughput can add an
+optional per-platform [native helper add-on](#native-helper-add-on-optional).
 
 ```
 ┌──────────────── Host's Minecraft (JVM) ─────────────────┐        ┌──────────────── Friend's Minecraft (JVM) ───────────────┐

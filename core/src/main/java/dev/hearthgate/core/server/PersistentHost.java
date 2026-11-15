@@ -32,8 +32,9 @@ import java.util.concurrent.TimeoutException;
  *   <li>The helper is supervised: if it exits or can't reach the relays, it
  *       is restarted with exponential backoff.</li>
  *   <li>Keys rotate on a schedule, make-before-break: the next identity's
- *       tunnel must be up before it replaces the current one, and the old
- *       tunnel keeps serving the players connected through it until they
+ *       tunnel must be up before it replaces the current one. The old
+ *       tunnel then refuses new connections, so the old invitation admits no
+ *       one, but keeps serving the players connected through it until they
  *       leave or the drain period ends.</li>
  *   <li>Each new invitation, and online/offline state, is announced to
  *       Discord if a webhook is configured.</li>
@@ -393,9 +394,12 @@ public final class PersistentHost implements AutoCloseable {
 			old.stop();
 			return;
 		}
+		// The old invitation stops admitting anyone now; only the players
+		// already connected through it stay, for at most the drain period.
+		old.helper.drain();
 		draining.add(old);
 		Duration drain = opts.config().drain();
-		LOG.info("Hearthgate: previous tunnel keeps serving {} player(s) for up to {} minutes",
+		LOG.info("Hearthgate: previous invitation retired; its tunnel keeps serving the {} player(s) already connected for up to {} minutes",
 				old.peers.size(), drain.toMinutes());
 		old.drainTimeout = exec.schedule(() -> closeDraining(old), drain.toMillis(), TimeUnit.MILLISECONDS);
 	}

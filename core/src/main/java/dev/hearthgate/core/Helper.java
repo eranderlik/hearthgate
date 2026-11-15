@@ -19,6 +19,12 @@ public interface Helper extends AutoCloseable {
 	/** Completes with the exit code when the helper stops. */
 	CompletableFuture<Integer> exitFuture();
 
+	/**
+	 * Retires a host's invitation: the helper keeps proxying the connections
+	 * it already has but refuses new ones. Has no effect on other commands.
+	 */
+	void drain();
+
 	/** Asks the helper to log every goroutine's stack, for diagnosing stalls. */
 	default void dumpStacks() {}
 

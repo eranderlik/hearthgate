@@ -41,6 +41,8 @@ public final class Sessions {
 
 	private final Minecraft mc;
 	private Session session;
+	/** The integrated server this mod published, on loopback only (it stays published after sharing stops). */
+	private java.lang.ref.WeakReference<IntegratedServer> loopbackServer = new java.lang.ref.WeakReference<>(null);
 
 	private final class Session implements HelperSession.Listener {
 		final Mode mode;
@@ -118,9 +120,27 @@ public final class Sessions {
 			return CompletableFuture.failedFuture(new IllegalStateException("No world is open."));
 		}
 		if (!server.isPublished()) {
-			if (!Compat.publishToLan(server, HttpUtil.getAvailablePort())) {
+			// Publishing listens on every interface; LoopbackOnly narrows that
+			// to loopback, which is all the helper needs. Check it can before
+			// publishing, so a failure never leaves the world open to the LAN.
+			if (!LoopbackOnly.available()) {
+				LOG.error("Hearthgate: can't share on this Minecraft version: {}", LoopbackOnly.unavailableReason());
 				return CompletableFuture.failedFuture(new IllegalStateException("Minecraft could not open this world to other players."));
 			}
+			int port = HttpUtil.getAvailablePort();
+			if (!Compat.publishToLan(server, port)) {
+				return CompletableFuture.failedFuture(new IllegalStateException("Minecraft could not open this world to other players."));
+			}
+			try {
+				LoopbackOnly.restrict(server, port);
+			} catch (IOException e) {
+				LOG.error("Hearthgate: could not limit the shared world to this machine", e);
+				return CompletableFuture.failedFuture(new IllegalStateException("Minecraft could not open this world to other players."));
+			}
+			loopbackServer = new java.lang.ref.WeakReference<>(server);
+			LOG.info("Hearthgate: world is listening on loopback port {} only", port);
+		} else if (server != loopbackServer.get()) {
+			LOG.info("Hearthgate: the world was already opened to LAN, so it stays reachable on the local network too");
 		}
 		int port = server.getPort();
 		Session s = new Session(Mode.HOST);

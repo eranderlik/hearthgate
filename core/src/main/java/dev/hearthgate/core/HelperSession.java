@@ -119,6 +119,11 @@ public final class HelperSession implements Helper {
 	}
 
 	@Override
+	public void drain() {
+		host.feedStdin("drain\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+	}
+
+	@Override
 	public void dumpStacks() {
 		host.feedStdin("stacks\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
 	}

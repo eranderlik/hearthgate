@@ -19,9 +19,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -55,6 +59,7 @@ public final class HearthgateClientGameTest implements FabricClientGameTest {
 			}, 60 * TICKS_PER_SECOND);
 			String invite = ctx.computeOnClient(mc -> HearthgateClientCommon.sessions().status().invite());
 			ctx.takeScreenshot("hearthgate-2-sharing");
+			assertLoopbackOnly(ctx.computeOnClient(mc -> mc.getSingleplayerServer().getPort()));
 
 			String status = pingThroughTunnel(invite);
 			String version = SharedConstants.getCurrentVersion().name();
@@ -78,6 +83,40 @@ public final class HearthgateClientGameTest implements FabricClientGameTest {
 		ctx.waitForScreen(JoinScreen.class);
 		ctx.takeScreenshot("hearthgate-5-join-screen");
 		ctx.setScreen(TitleScreen::new);
+	}
+
+	/**
+	 * The shared world must accept connections on loopback (for the helper) and
+	 * nowhere else: Open to LAN alone would listen on every interface.
+	 */
+	private static void assertLoopbackOnly(int port) {
+		try (Socket s = new Socket()) {
+			s.connect(new InetSocketAddress("127.0.0.1", port), 5_000);
+		} catch (IOException e) {
+			throw new AssertionError("shared world is not listening on 127.0.0.1:" + port, e);
+		}
+		List<InetAddress> others = new ArrayList<>();
+		try {
+			for (NetworkInterface ni : Collections.list(NetworkInterface.getNetworkInterfaces())) {
+				if (ni.isUp() && !ni.isLoopback()) {
+					for (InetAddress a : Collections.list(ni.getInetAddresses())) {
+						if (!a.isLinkLocalAddress()) {
+							others.add(a);
+						}
+					}
+				}
+			}
+		} catch (IOException e) {
+			throw new AssertionError(e);
+		}
+		for (InetAddress a : others) {
+			try (Socket s = new Socket()) {
+				s.connect(new InetSocketAddress(a, port), 2_000);
+				throw new AssertionError("shared world is reachable on " + a.getHostAddress() + ":" + port);
+			} catch (IOException expected) {
+			}
+		}
+		log("shared world listens on loopback only (checked " + others.size() + " other address(es))");
 	}
 
 	/** Joins with a separate helper instance and performs a server list ping through it. */

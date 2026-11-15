@@ -1,14 +1,32 @@
-name: build
+name: release
 
+# Runs only when a release is being made, to save runner minutes: push a tag
+# named after the version in gradle.properties (git tag v0.2.0 && git push
+# origin v0.2.0). Every test job must pass before the release job publishes
+# the jars as a GitHub release; if any fails, no release is created. "Run
+# workflow" on the Actions tab runs the same tests without releasing.
 on:
   push:
-  pull_request:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Check the tag matches the mod version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's/^mod_version=//p' gradle.properties)
+          if [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::tag $GITHUB_REF_NAME doesn't match mod_version=$version in gradle.properties"
+            exit 1
+          fi
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -45,6 +63,9 @@ jobs:
   # of each platform so that no cross-compilers are needed. Linux builds on
   # the oldest supported Ubuntu so the library runs on glibc 2.34 and later.
   native:
+    # After build, so a bad tag fails before the Windows and macOS runners
+    # (billed at 2x and 10x) start.
+    needs: build
     strategy:
       fail-fast: false
       matrix:
@@ -223,3 +244,25 @@ jobs:
       - run: ./gradlew :fabric:jar
       - name: Quilt dedicated server smoke test on Minecraft ${{ matrix.mc }}
         run: tools/quilt-smoke.sh ${{ matrix.mc }}
+
+  # Publishes the release once every test job has passed. Only for tags: a
+  # manual run tests without releasing.
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, native, gametest, neoforge, forge, quilt]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: hearthgate*
+          path: dist
+          merge-multiple: true
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag
+          --title "Hearthgate ${GITHUB_REF_NAME#v}" --generate-notes
+          $(find dist -name '*.jar' ! -name '*-slim.jar' ! -name '*-sources.jar' | sort)

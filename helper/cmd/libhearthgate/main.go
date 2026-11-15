@@ -34,7 +34,7 @@ import (
 )
 
 // abiVersion changes whenever a function's signature or meaning changes.
-const abiVersion = 1
+const abiVersion = 2
 
 // buildID identifies the helper sources this library was built from. The
 // mod refuses a library whose ID differs from its own WebAssembly helper's,
@@ -52,6 +52,7 @@ const (
 
 type session struct {
 	cancel  context.CancelFunc
+	ctl     *app.Control
 	records chan []byte
 	// logs counts log records queued but not yet taken.
 	mu      sync.Mutex
@@ -91,7 +92,7 @@ func hg_start(argsJSON *C.char) C.int64_t {
 		return 0
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	s := &session{cancel: cancel, records: make(chan []byte, maxPendingLogs+64)}
+	s := &session{cancel: cancel, ctl: app.NewControl(), records: make(chan []byte, maxPendingLogs+64)}
 
 	mu.Lock()
 	nextID++
@@ -108,7 +109,7 @@ func hg_start(argsJSON *C.char) C.int64_t {
 			}
 			s.event('X', nil)
 		}()
-		app.Run(ctx, eventSink{s}, s.logf, args)
+		app.Run(ctx, eventSink{s}, s.logf, args, s.ctl)
 	}()
 	return C.int64_t(id)
 }
@@ -159,6 +160,19 @@ func hg_stop(handle C.int64_t) {
 	mu.Unlock()
 	if s != nil {
 		s.cancel()
+	}
+}
+
+// hg_drain makes a host session refuse new streams while keeping the ones it
+// has, like writing "drain" to the helper's stdin (see app.Control).
+//
+//export hg_drain
+func hg_drain(handle C.int64_t) {
+	mu.Lock()
+	s := sessions[int64(handle)]
+	mu.Unlock()
+	if s != nil {
+		s.ctl.Drain()
 	}
 }
 
