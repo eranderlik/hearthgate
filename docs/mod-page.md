@@ -46,14 +46,12 @@ Configuration details are in the [README](https://github.com/eranderlik/hearthga
 
 ## Requirements
 
-| | |
-| Requirement | Supported |
-| **Minecraft** | 26.1 – 26.3 (one jar for all) |
-| **Fabric** | Fabric Loader 0.19.5+ and Fabric API |
-| **Quilt** | Use the Fabric jar with the regular Fabric API |
-| **NeoForge** | 26.1 or newer (`hearthgate-neoforge` jar) |
-| **Forge** | 62 or newer (`hearthgate-forge` jar) |
-| **Who needs it** | Everyone: the host and every player who joins |
+- **Minecraft:** 26.1 – 26.3 (one jar for all)
+- **Fabric:** Fabric Loader 0.19.5+ and Fabric API
+- **Quilt:** use the Fabric jar with the regular Fabric API
+- **NeoForge:** 26.1 or newer (`hearthgate-neoforge` jar)
+- **Forge:** 62 or newer (`hearthgate-forge` jar)
+- **Who needs it:** everyone, the host and every player who joins
 
 ## FAQ
 
