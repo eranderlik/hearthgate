@@ -251,3 +251,26 @@ tasks.register('printMinecraftJars') {
 		found.each { println it }
 	}
 }
+
+// Scripted demo recording (tools/demo/record.sh): two dev clients, a host and
+// a friend, play a share-and-join driven by the gametest source set's
+// DemoDriver. Only defined with -Pdemo, so they never show up otherwise.
+if (providers.gradleProperty('demo').isPresent()) {
+	def demoDir = rootProject.layout.buildDirectory.dir('demo').get().asFile
+	[host: 'Alex', join: 'Steve'].each { role, user ->
+		loom.runs.register("demo${role.capitalize()}") {
+			client()
+			configName = "Demo ${role}"
+			ideConfigGenerated false
+			source sourceSets.gametest
+			runDir "run/demo-${role}"
+			vmArg "-Dhearthgate.demo=${role}"
+			vmArg "-Dhearthgate.demo.dir=${demoDir}"
+			vmArg "-Dhearthgate.demo.seed=${providers.gradleProperty('demoSeed').getOrElse('hearthgate')}"
+			programArgs '--username', user, '--width', '1280', '--height', '720'
+			if (role == 'host') {
+				environmentVariable 'HEARTHGATE_DEV_OFFLINE_AUTH', '1'
+			}
+		}
+	}
+}

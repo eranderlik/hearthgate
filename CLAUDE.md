@@ -56,6 +56,8 @@ tools/quilt-smoke.sh 26.1                         # PORT default 25568
 ./gradlew :forge:runClient -Pmc=<version>
 ```
 
+**Demo media.** `tools/demo/record.sh` (needs Xvfb, ffmpeg, network) runs two Fabric dev clients side by side on a virtual display: `DemoDriver` in the gametest source set (inert unless `-Dhearthgate.demo` is set; the `runDemoHost`/`runDemoJoin` runs exist only with `-Pdemo`) shares a world as "Alex" and joins as "Steve". `python3 tools/demo/render.py` then writes `docs/media/demo.gif` + stills and `build/demo/demo.mp4`. Re-record after UI changes.
+
 `tools/server-smoke.sh` starts the server through Gradle, waits for Hearthgate's "server is reachable" line, runs `hearthgate invite` over RCON and checks that an `hg1_…` invitation comes back. It needs network access. Env: `PORT` (default 25566, RCON on PORT+100), `SMOKE_TIMEOUT`, `SMOKE_EXPECT` (an extra log regex, e.g. `using the native helper`), `SMOKE_LOG`. `-PprebuiltJar=<jar>` (NeoForge/Forge) makes the run load that jar from `run/*/mods` instead of the project's classes. CI uses it to run the 26.1-built jar on every newer version.
 
 Dev-only env vars: `HEARTHGATE_DEV_OFFLINE_AUTH=1` (two-player testing with one account; dev environment only), `HEARTHGATE_VERBOSE=1`.

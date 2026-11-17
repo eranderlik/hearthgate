@@ -5,6 +5,9 @@
 	"name": "Hearthgate client game tests",
 	"environment": "client",
 	"entrypoints": {
+		"client": [
+			"dev.hearthgate.gametest.DemoDriver"
+		],
 		"fabric-client-gametest": [
 			"dev.hearthgate.gametest.HearthgateClientGameTest",
 			"dev.hearthgate.gametest.HearthgateServerGameTest"

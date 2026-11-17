@@ -5,9 +5,26 @@
 **Play Minecraft with your friends, wherever they are.** No port forwarding,
 no server to rent, no extra apps. Just the mod.
 
-Open your world, press Esc, and click **Share with Hearthgate**. Send the
-invitation it gives you to your friends, and they paste it into
-**Multiplayer → Join with Hearthgate**. That's it: they're in your world.
+**Download:** [GitHub Releases](https://github.com/eranderlik/hearthgate/releases/latest)
+
+![A host shares their world and a friend on another network joins it with the invitation](docs/media/demo.gif)
+
+▶ [Watch the demo in full quality on YouTube](https://youtu.be/qOLP63FkhJg)
+
+1. **Host:** open your world, press Esc, and click **Share with Hearthgate**.
+2. Click **Copy Invitation** and send it to your friends.
+3. **Friends:** **Multiplayer → Join with Hearthgate**, paste, **Connect**.
+   That's it: they're in your world.
+
+<details>
+<summary>Screenshots</summary>
+
+| | |
+|---|---|
+| ![The Share with Hearthgate button in the pause menu](docs/media/step-1-share-button.png) | ![The share screen with the invitation](docs/media/step-2-invitation.png) |
+| ![Pasting the invitation into Join with Hearthgate](docs/media/step-3-join-screen.png) | ![The host sees the friend connect directly](docs/media/step-4-connected.png) |
+
+</details>
 
 * **Nothing to set up.** No router settings, no accounts to create, no VPN to
   install.
